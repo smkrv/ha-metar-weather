@@ -6,8 +6,14 @@ Constants for the HA METAR Weather integration.
 @github: https://github.com/smkrv/ha-metar-weather
 @source: https://github.com/smkrv/ha-metar-weather
 """
+
 from datetime import timedelta
-import voluptuous as vol
+from homeassistant.const import (
+    UnitOfTemperature,
+    UnitOfLength,
+    UnitOfPressure,
+    UnitOfSpeed,
+)
 
 DOMAIN = "ha_metar_weather"
 CONF_ICAO = "icao"
@@ -25,9 +31,17 @@ STORAGE_VERSION = 1
 # Error retry intervals in minutes
 RETRY_INTERVALS = [3, 6, 12, 60]
 
-# Validation schema for ICAO code
+# ICAO code validation
 ICAO_REGEX = "^[A-Z0-9]{4}$"
-ICAO_SCHEMA = vol.Schema(vol.Match(ICAO_REGEX))
 
+# Attributes
 ATTR_LAST_UPDATE = "last_update"
-ATTR_METAR_DATA = "metar_data"
+ATTR_STATION_NAME = "station_name"
+ATTR_RAW_METAR = "raw_metar"
+ATTR_HISTORICAL_DATA = "historical_data"
+
+# Units (using new constants)
+UNIT_TEMPERATURE = UnitOfTemperature.CELSIUS
+UNIT_LENGTH = UnitOfLength.METERS
+UNIT_PRESSURE = UnitOfPressure.HPA
+UNIT_SPEED = UnitOfSpeed.METERS_PER_SECOND

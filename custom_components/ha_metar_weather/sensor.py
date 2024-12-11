@@ -21,10 +21,10 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    TEMP_CELSIUS,
-    LENGTH_METERS,
-    PRESSURE_HPA,
-    SPEED_METERS_PER_SECOND,
+    UnitOfTemperature,
+    UnitOfLength,
+    UnitOfPressure,
+    UnitOfSpeed,
     DEGREE,
     PERCENTAGE,
 )
@@ -60,7 +60,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="temperature",
         name="Temperature",
-        native_unit_of_measurement=TEMP_CELSIUS,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("temperature"),
@@ -69,7 +69,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="dew_point",
         name="Dew Point",
-        native_unit_of_measurement=TEMP_CELSIUS,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("dew_point"),
@@ -78,7 +78,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="wind_speed",
         name="Wind Speed",
-        native_unit_of_measurement=SPEED_METERS_PER_SECOND,
+        native_unit_of_measurement=UnitOfSpeed.METERS_PER_SECOND,
         device_class=SensorDeviceClass.WIND_SPEED,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("wind_speed"),
@@ -95,7 +95,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="visibility",
         name="Visibility",
-        native_unit_of_measurement=LENGTH_METERS,
+        native_unit_of_measurement=UnitOfLength.METERS,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("visibility"),
@@ -104,7 +104,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="pressure",
         name="Pressure",
-        native_unit_of_measurement=PRESSURE_HPA,
+        native_unit_of_measurement=UnitOfPressure.HPA,
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("pressure"),
@@ -192,7 +192,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             "name": f"METAR {station}",
             "manufacturer": "NOAA",
             "model": "METAR Weather Station",
-            "sw_version": "1.0.0",
+            "sw_version": "2.0.9",
             "entry_type": "service",
         }
 
@@ -228,3 +228,50 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             if self.entity_description.has_history:
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station)
+
+                historical_values = []
+                for record in history:
+                    value = self.entity_description.value_fn(record)
+                    if value is not None:
+                        historical_values.append({
+                            "timestamp": record["timestamp"],
+                            "value": value
+                        })
+
+                if historical_values:
+                    # Keep only last 24 records
+                    attrs[ATTR_HISTORICAL_DATA] = historical_values[-24:]
+
+                    # Calculate statistics
+                    values = [item["value"] for item in historical_values]
+                    if values:
+                        attrs["min_24h"] = min(values)
+                        attrs["max_24h"] = max(values)
+                        attrs["average_24h"] = round(sum(values) / len(values), 2)
+
+                        # Add trend calculation
+                        if len(values) >= 2:
+                            trend = values[-1] - values[-2]
+                            attrs["trend"] = "stable" if abs(trend) < 0.1 else (
+                                "rising" if trend > 0 else "falling"
+                            )
+
+            # Add station metadata
+            if "station_name" in self.coordinator.data:
+                attrs[ATTR_STATION_NAME] = self.coordinator.data["station_name"]
+
+        return attrs
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success and
+            self.coordinator.data is not None and
+            self.native_value is not None
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
