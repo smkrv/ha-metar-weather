@@ -1,0 +1,65 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "HA METAR Weather Setup",
+                "description": "Set up METAR weather monitoring. Data source: https://tgftp.nws.noaa.gov/\nPlease make sure you comply with the data usage terms.",
+                "data": {
+                    "icao": "ICAO Airport Code",
+                    "terms_accepted": "I accept the terms and conditions of the data source"
+                }
+            }
+        },
+        "error": {
+            "invalid_icao": "Invalid ICAO code format",
+            "terms_not_accepted": "You must accept the terms and conditions",
+            "station_exists": "This station is already configured",
+            "cannot_connect": "Failed to connect to station",
+            "unknown": "Unexpected error"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Manage METAR Stations",
+                "description": "Currently configured stations:\n{stations}"
+            },
+            "station_add": {
+                "title": "Add Station",
+                "description": "Enter ICAO code for the new station",
+                "data": {
+                    "icao": "ICAO Airport Code"
+                }
+            },
+            "station_configure": {
+                "title": "Station Configuration",
+                "description": "Would you like to add another station?",
+                "data": {
+                    "add_another": "Add another station"
+                }
+            }
+        }
+    },
+    "services": {
+        "update_station": {
+            "name": "Update Station",
+            "description": "Force update of METAR data for specific station.",
+            "fields": {
+                "station": {
+                    "name": "Station",
+                    "description": "ICAO code of the station to update"
+                }
+            }
+        },
+        "clear_history": {
+            "name": "Clear History",
+            "description": "Clear historical data for specific station.",
+            "fields": {
+                "station": {
+                    "name": "Station",
+                    "description": "ICAO code of the station to clear history"
+                }
+            }
+        }
+    }
+}
