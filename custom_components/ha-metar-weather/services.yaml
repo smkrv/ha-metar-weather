@@ -1,0 +1,23 @@
+update_station:
+  name: Update Station
+  description: Force update of METAR data for specific station
+  fields:
+    station:
+      name: Station
+      description: ICAO code of the station to update
+      required: true
+      selector:
+        text:
+          type: string
+
+clear_history:
+  name: Clear History
+  description: Clear historical data for specific station
+  fields:
+    station:
+      name: Station
+      description: ICAO code of the station to clear history
+      required: true
+      selector:
+        text:
+          type: string
