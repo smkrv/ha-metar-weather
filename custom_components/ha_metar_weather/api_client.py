@@ -35,7 +35,7 @@ class MetarApiClient:
         self.hass = hass
         self.icao = icao
         self.metar = None
-        # Используем существующую сессию Home Assistant
+        # Use existing Home Assistant session
         self.session = async_get_clientsession(hass)
         self._retry_count = 0
 
@@ -77,11 +77,11 @@ class MetarApiClient:
         """Convert visibility to correct units."""
         if visibility is None:
             return None
-        # Конвертируем метры в километры или мили
-        kilometers = visibility / 1000  # сначала переводим метры в километры
+        # Convert meters to kilometers or miles
+        kilometers = visibility / 1000  # first convert meters to kilometers
         if self._unit_system == CONF_UNIT_SYSTEM_IMPERIAL:
-            return round(kilometers * 0.621371, 1)  # километры в мили
-        return round(kilometers, 1)  # оставляем в километрах
+            return round(kilometers * 0.621371, 1)  # kilometers to miles
+        return round(kilometers, 1)  # keep in kilometers
 
     def _convert_pressure(self, pressure: float) -> float:
         """Convert pressure from hPa to inHg or keep as hPa."""
@@ -131,7 +131,7 @@ class MetarApiClient:
         def _setup_metar():
             try:
                 metar = avwx.Metar(self.icao)
-                # Используем сессию Home Assistant
+                # Use Home Assistant session
                 if hasattr(metar, '_http'):
                     metar._http.session = self.session
                 return metar

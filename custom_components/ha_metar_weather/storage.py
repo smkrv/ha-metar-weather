@@ -118,7 +118,7 @@ class MetarHistoryStorage:
                 if station not in self._data:
                     self._data[station] = []
 
-                # Проверка лимита
+                # Check record limit
                 if len(self._data[station]) >= MAX_RECORDS_PER_STATION:
                     self._data[station] = self._data[station][-(MAX_RECORDS_PER_STATION-1):]
 
