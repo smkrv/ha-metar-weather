@@ -61,5 +61,214 @@
                 }
             }
         }
+    },
+    "entity": {
+        "sensor": {
+            "temperature": {
+                "name": "Temperature",
+                "state_attributes": {
+                    "trend": {
+                        "state": {
+                            "rising": "Rising",
+                            "falling": "Falling",
+                            "stable": "Stable"
+                        }
+                    }
+                }
+            },
+            "dew_point": {
+                "name": "Dew Point"
+            },
+            "wind_speed": {
+                "name": "Wind Speed"
+            },
+            "wind_direction": {
+                "name": "Wind Direction"
+            },
+            "wind_gust": {
+                "name": "Wind Gust",
+                "state_attributes": {
+                    "trend": {
+                        "state": {
+                            "rising": "Rising",
+                            "falling": "Falling",
+                            "stable": "Stable"
+                        }
+                    }
+                }
+            },
+            "wind_variable_direction": {
+                "name": "Wind Variable Direction",
+                "state_attributes": {
+                    "from_direction": "From Direction",
+                    "to_direction": "To Direction"
+                }
+            },
+            "visibility": {
+                "name": "Visibility"
+            },
+            "pressure": {
+                "name": "Pressure"
+            },
+            "humidity": {
+                "name": "Relative Humidity"
+            },
+            "weather": {
+                "name": "Weather Condition"
+            },
+            "cloud_coverage": {
+                "name": "Cloud Coverage"
+            },
+            "cloud_layers": {
+                "name": "Cloud Layers"
+            },
+            "raw_metar": {
+                "name": "Raw METAR"
+            },
+            "report_type": {
+                "name": "Report Type"
+            },
+            "auto_indicator": {
+                "name": "Auto Indicator"
+            },
+            "cavok": {
+                "name": "CAVOK"
+            },
+            "runway_states": {
+                "name": "All Runways State"
+            },
+            "runway_state": {
+                "name": "Runway State",
+                "state_attributes": {
+                    "surface": {
+                        "state": {
+                            "clear_and_dry": "Clear and dry",
+                            "damp": "Damp",
+                            "wet": "Wet",
+                            "rime": "Rime or frost",
+                            "dry_snow": "Dry snow",
+                            "wet_snow": "Wet snow",
+                            "slush": "Slush",
+                            "ice": "Ice",
+                            "compacted_snow": "Compacted snow",
+                            "frozen_ruts": "Frozen ruts"
+                        }
+                    },
+                    "coverage": {
+                        "state": {
+                            "less_10": "Less than 10%",
+                            "11_25": "11-25%",
+                            "26_50": "26-50%",
+                            "51_100": "51-100%"
+                        }
+                    },
+                    "friction": {
+                        "state": {
+                            "poor": "Poor",
+                            "medium_poor": "Medium/Poor",
+                            "medium": "Medium",
+                            "medium_good": "Medium/Good",
+                            "good": "Good"
+                        }
+                    }
+                }
+            },
+            "recent_weather": {
+                "name": "Recent Weather"
+            },
+            "wind_shear": {
+                "name": "Wind Shear"
+            },
+            "trend": {
+                "name": "Trend"
+            },
+            "remarks": {
+                "name": "Remarks"
+            }
+        }
+    },
+    "state_attributes": {
+        "last_update": "Last Update",
+        "station": "Station",
+        "station_name": "Station Name",
+        "raw_metar": "Raw METAR",
+        "min_24h": "24h Minimum",
+        "max_24h": "24h Maximum",
+        "average_24h": "24h Average",
+        "trend": "Trend",
+        "wind_gust": "Wind Gust",
+        "wind_variable_direction": "Variable Wind Direction",
+        "wind_variation_from": "Wind Variation From",
+        "wind_variation_to": "Wind Variation To"
+    },
+    "weather": {
+        "intensity": {
+            "light": "Light",
+            "heavy": "Heavy",
+            "vicinity": "In the vicinity"
+        },
+        "descriptor": {
+            "shallow": "Shallow",
+            "partial": "Partial",
+            "patches": "Patches",
+            "low_drifting": "Low drifting",
+            "blowing": "Blowing",
+            "showers": "Showers",
+            "thunderstorm": "Thunderstorm",
+            "freezing": "Freezing"
+        },
+        "phenomenon": {
+            "drizzle": "Drizzle",
+            "rain": "Rain",
+            "snow": "Snow",
+            "snow_grains": "Snow grains",
+            "ice_crystals": "Ice crystals",
+            "ice_pellets": "Ice pellets",
+            "hail": "Hail",
+            "small_hail": "Small hail",
+            "unknown": "Unknown precipitation",
+            "mist": "Mist",
+            "fog": "Fog",
+            "smoke": "Smoke",
+            "volcanic_ash": "Volcanic ash",
+            "dust": "Widespread dust",
+            "sand": "Sand",
+            "haze": "Haze",
+            "spray": "Spray",
+            "dust_whirls": "Dust/sand whirls",
+            "squalls": "Squalls",
+            "funnel_cloud": "Funnel cloud",
+            "sandstorm": "Sandstorm",
+            "duststorm": "Duststorm"
+        }
+    },
+    "cloud_coverage": {
+        "clear_sky": "Clear sky",
+        "clear": "Clear",
+        "no_significant": "No significant clouds",
+        "few": "Few (1-2 oktas)",
+        "scattered": "Scattered (3-4 oktas)",
+        "broken": "Broken (5-7 oktas)",
+        "overcast": "Overcast (8 oktas)",
+        "vertical_visibility": "Vertical visibility"
+    },
+    "runway": {
+        "condition": {
+            "contamination": "Contamination",
+            "coverage": "Coverage",
+            "depth": "Depth",
+            "friction": "Friction",
+            "braking": "Braking action"
+        }
+    },
+    "wind": {
+        "variable_direction": {
+            "from": "From",
+            "to": "To",
+            "varying_between": "Varying between"
+        },
+        "gust": {
+            "up_to": "Up to"
+        }
     }
 }

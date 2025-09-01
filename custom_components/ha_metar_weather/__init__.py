@@ -2,88 +2,135 @@
 The HA METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
-@author: SMKRV
 @github: https://github.com/smkrv/ha-metar-weather
 @source: https://github.com/smkrv/ha-metar-weather
 """
-
 from __future__ import annotations
 
-import asyncio
 import logging
+import async_timeout
+import asyncio
+
 from datetime import timedelta
-import random
+from typing import Dict
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    callback,
+)
 from homeassistant.const import Platform
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .api_client import MetarApiClient
 from .storage import MetarHistoryStorage
 from .const import (
     DOMAIN,
-    CONF_ICAO,
     CONF_STATIONS,
     DEFAULT_SCAN_INTERVAL,
-    RANDOM_MINUTES_MIN,
-    RANDOM_MINUTES_MAX,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the HA METAR Weather component."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Initialize storage
-    storage = MetarHistoryStorage(hass)
-    await storage.async_load()
-    hass.data[DOMAIN]["storage"] = storage
+    try:
+        async with async_timeout.timeout(30):
+            storage = MetarHistoryStorage(hass)
+            await storage.async_load()
+            hass.data[DOMAIN]["storage"] = storage
+            _LOGGER.debug("Storage initialized successfully.")
+    except Exception as err:
+        _LOGGER.error("Failed to initialize storage: %s", err)
+        return False
 
     return True
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up HA METAR Weather from a config entry."""
-    coordinators = {}
 
-    # Create coordinator for each station
-    for station in entry.data[CONF_STATIONS]:
-        client = MetarApiClient(hass, station)
+class MetarDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching METAR data."""
 
-        # Add random minutes to update interval for each station
-        random_minutes = random.randint(RANDOM_MINUTES_MIN, RANDOM_MINUTES_MAX)
-        update_interval = DEFAULT_SCAN_INTERVAL + timedelta(minutes=random_minutes)
-
-        async def async_update_data(station=station, client=client):
-            """Fetch data from API."""
-            data = await client.fetch_data()
-            if data:
-                await hass.data[DOMAIN]["storage"].async_add_record(station, data)
-            return data
-
-        coordinator = DataUpdateCoordinator(
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: MetarApiClient,
+        station: str,
+        update_interval: timedelta,
+    ):
+        """Initialize the coordinator."""
+        super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{station}",
-            update_method=async_update_data,
             update_interval=update_interval,
         )
+        self.client = client
+        self.station = station
 
-        # Fetch initial data
-        await coordinator.async_config_entry_first_refresh()
+    async def _async_update_data(self):
+        """Fetch data from API."""
+        try:
+            data = await self.client.fetch_data()
+            if not data:
+                raise UpdateFailed(f"No data received for station {self.station}")
+            _LOGGER.debug("Updated data for %s: %s", self.station, data)
+            return data
+        except Exception as err:
+            _LOGGER.error("Error updating data for %s: %s", self.station, err)
+            raise UpdateFailed(f"Error fetching data: {err}") from err
 
-        if not coordinator.last_update_success:
-            raise ConfigEntryNotReady(
-                f"Failed to fetch initial data for station {station}"
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up HA METAR Weather from a config entry."""
+    coordinators: Dict[str, MetarDataUpdateCoordinator] = {}
+
+    for station in entry.data[CONF_STATIONS]:
+        station = station.upper()
+        try:
+            client = MetarApiClient(hass, station)
+
+            # Get initial data
+            initial_data = await client.fetch_data()
+            if not initial_data:
+                _LOGGER.error("No initial data received for station %s", station)
+                continue
+
+            coordinator = MetarDataUpdateCoordinator(
+                hass,
+                client,
+                station,
+                DEFAULT_SCAN_INTERVAL,
             )
 
-        coordinators[station] = coordinator
+            coordinator.data = initial_data
+
+            await coordinator.async_config_entry_first_refresh()
+
+            coordinators[station] = coordinator
+            _LOGGER.debug(
+                "Coordinator setup complete for %s with data: %s",
+                station,
+                coordinator.data,
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error setting up station %s: %s", station, err)
+            continue
+
+    if not coordinators:
+        return False
 
     hass.data[DOMAIN][entry.entry_id] = coordinators
 
@@ -94,27 +141,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def async_update_station(call: ServiceCall) -> None:
         """Handle forced update service call."""
         station = call.data["station"].upper()
-        if station not in entry.data[CONF_STATIONS]:
-            _LOGGER.error("Station %s is not configured", station)
-            return
-
-        coordinator = hass.data[DOMAIN][entry.entry_id][station]
-        await coordinator.async_refresh()
-        _LOGGER.debug("Forced update for station %s completed", station)
+        if station in coordinators:
+            await coordinators[station].async_request_refresh()
+            _LOGGER.debug("Forced update for station %s completed", station)
+        else:
+            _LOGGER.error("Station %s not found", station)
 
     async def async_clear_history(call: ServiceCall) -> None:
         """Handle clear history service call."""
         station = call.data["station"].upper()
-        storage = hass.data[DOMAIN]["storage"]
+        storage: MetarHistoryStorage = hass.data[DOMAIN]["storage"]
 
         if station in entry.data[CONF_STATIONS]:
-            storage._data[station] = []
-            await storage.async_save()
-            _LOGGER.info("Cleared history for station %s", station)
+            try:
+                async with async_timeout.timeout(10):
+                    storage._data[station] = []
+                    await storage.async_save()
+                    _LOGGER.info("Cleared history for station %s", station)
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timeout clearing history for %s", station)
+            except Exception as err:
+                _LOGGER.error("Error clearing history for %s: %s", station, err)
         else:
             _LOGGER.error("Station %s is not configured", station)
 
-    # Register services with validation schemas
     hass.services.async_register(
         DOMAIN,
         "update_station",
@@ -137,22 +187,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     return True
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        coordinators = hass.data[DOMAIN].pop(entry.entry_id)
 
-        # Cancel all update tasks
-        for coordinator in coordinators.values():
-            coordinator.async_shutdown()
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await async_reload_entry(hass, entry)
 
-    return unload_ok
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    try:
+        await async_unload_entry(hass, entry)
+        await async_setup_entry(hass, entry)
+        _LOGGER.debug("Reloaded entry for %s", entry.entry_id)
+    except Exception as err:
+        _LOGGER.error("Error reloading entry: %s", err)
 
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Update listener."""
-    await async_reload_entry(hass, entry)
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if unload_ok:
+        coordinators = hass.data[DOMAIN].pop(entry.entry_id)
+        for coordinator in coordinators.values():
+            # Don't close session as it's managed by Home Assistant
+            coordinator.async_stop = True
+
+    return unload_ok
