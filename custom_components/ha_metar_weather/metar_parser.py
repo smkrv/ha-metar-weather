@@ -108,18 +108,31 @@ class MetarParser:
         runway_states = {}
 
         try:
-            matches = re.finditer(r'R(\d{2}[LCR]?)/(\d{6})', self.raw_metar)
+            # Handle both standard format (R24L/123456) and special formats (R24L/CLRD62)
+            matches = re.finditer(r'R(\d{2}[LCR]?)/([A-Z]{4}\d{2}|\d{6})', self.raw_metar)
             for match in matches:
                 runway = match.group(1)
                 conditions = match.group(2)
 
-                state = RunwayState(
-                    surface=self.RUNWAY_SURFACE_CODES.get(conditions[0], "Unknown"),
-                    coverage=self.RUNWAY_COVERAGE_CODES.get(conditions[1], "Unknown"),
-                    depth=int(conditions[2:4]),
-                    friction=int(conditions[4:6])/100,
-                    raw=conditions
-                )
+                if conditions.startswith('CLRD'):
+                    # Special case for CLRD format (Clear and dry runway)
+                    friction_code = conditions[4:6]
+                    state = RunwayState(
+                        surface="Clear and dry",
+                        coverage="0%",
+                        depth=0,
+                        friction=int(friction_code)/100,
+                        raw=conditions
+                    )
+                else:
+                    # Standard 6-digit format
+                    state = RunwayState(
+                        surface=self.RUNWAY_SURFACE_CODES.get(conditions[0], "Unknown"),
+                        coverage=self.RUNWAY_COVERAGE_CODES.get(conditions[1], "Unknown"),
+                        depth=int(conditions[2:4]),
+                        friction=int(conditions[4:6])/100,
+                        raw=conditions
+                    )
 
                 runway_states[runway] = state
                 _LOGGER.debug("Parsed runway state for %s: %s", runway, state)
@@ -201,6 +214,10 @@ class MetarParser:
         """Parse trend information."""
         try:
             trend_parts = []
+
+            # Check for NOSIG (No Significant Change) in raw METAR
+            if 'NOSIG' in self.raw_metar:
+                return "No significant change"
 
             if hasattr(self.metar, 'tempo'):
                 trend_parts.append(f"TEMPO {self.metar.tempo}")
@@ -306,8 +323,16 @@ class MetarParser:
                 if part.endswith('MPS') and i + 1 < len(raw_parts):
                     next_part = raw_parts[i + 1]
                     if next_part.isdigit():
-                        visibility = float(next_part) / 1000  # Convert meters to kilometers
+                        # Special case for 9999 (10 km or more)
+                        if next_part == "9999":
+                            visibility = 10.0
+                        else:
+                            visibility = float(next_part) / 1000  # Convert meters to kilometers
                         break
+                elif part == "9999":
+                    # Handle 9999 visibility code when not immediately after wind
+                    visibility = 10.0
+                    break
 
         # Parse weather phenomena (excluding TEMPO)
         weather_conditions = []
