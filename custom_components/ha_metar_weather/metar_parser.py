@@ -72,19 +72,19 @@ class MetarParser:
         """Parse cloud information from METAR."""
         layers = []
         try:
-            # Ищем части строки, содержащие информацию об облаках
+            # Search for string parts containing cloud information
             parts = self.raw_metar.split()
             for part in parts:
                 if any(part.startswith(prefix) for prefix in ['SCT', 'BKN', 'OVC']):
                     coverage_code = part[:3]
                     coverage = self.CLOUD_COVERAGE.get(coverage_code, coverage_code)
 
-                    # Извлекаем высоту (следующие 3 цифры после кода)
+                    # Extract height (next 3 digits after code)
                     height = None
                     if len(part) >= 6 and part[3:6].isdigit():
-                        height = int(part[3:6]) * 100  # Умножаем на 100 для получения футов
+                        height = int(part[3:6]) * 100  # Multiply by 100 to get feet
 
-                    # Определяем тип облаков (если есть)
+                    # Determine cloud type (if present)
                     cloud_type = None
                     if len(part) > 6:
                         type_code = part[6:]
@@ -139,9 +139,9 @@ class MetarParser:
             weather_codes = []
             parts = self.raw_metar.split()
 
-            # Сложные погодные явления могут состоять из нескольких частей
+            # Complex weather phenomena can consist of multiple parts
             for part in parts:
-                # Пропускаем известные не-погодные коды
+                # Skip known non-weather codes
                 if (part.endswith('KT') or part.endswith('MPS') or
                     '/' in part or part.startswith('Q') or
                     part.startswith('R') or part.isdigit() or
@@ -152,7 +152,7 @@ class MetarParser:
                 intensity = ''
                 descriptor = ''
 
-                # Проверяем интенсивность
+                # Check intensity
                 if part.startswith(('-', '+')):
                     intensity = self.WEATHER_PHENOMENA.get(part[0], '')
                     part = part[1:]
@@ -160,24 +160,24 @@ class MetarParser:
                     intensity = self.WEATHER_PHENOMENA['VC']
                     part = part[2:]
 
-                # Проверяем дескрипторы (2 буквы)
+                # Check descriptors (2 letters)
                 if len(part) >= 2:
                     desc = part[:2]
                     if desc in self.WEATHER_PHENOMENA:
                         descriptor = self.WEATHER_PHENOMENA[desc]
                         part = part[2:]
 
-                # Проверяем основное явление
+                # Check main phenomenon
                 if part in self.WEATHER_PHENOMENA:
                     weather = self.WEATHER_PHENOMENA[part]
 
-                # Собираем полное описание погоды
+                # Assemble full weather description
                 if any([intensity, descriptor, weather]):
                     full_weather = ' '.join(filter(None, [intensity, descriptor, weather]))
                     if full_weather:
                         weather_codes.append(full_weather)
 
-            # Обработка специальных случаев
+            # Handle special cases
             if 'RESN' in parts:
                 weather_codes.append('Recent Snow')
             if 'RETS' in parts:
@@ -222,10 +222,10 @@ class MetarParser:
         try:
             if hasattr(value, 'value'):
                 val = value.value
-                # Для видимости в метрах конвертируем в нужные единицы
+                # For visibility in meters, convert to appropriate units
                 if hasattr(value, 'units'):
-                    if value.units == 'm':  # если значение в метрах
-                        return float(val)  # оставляем в метрах
+                    if value.units == 'm':  # if value is in meters
+                        return float(val)  # keep in meters
                 return float(val)
 
             if isinstance(value, str):
@@ -279,37 +279,37 @@ class MetarParser:
         """Return complete parsed METAR data."""
         raw_parts = self.raw_metar.split()
 
-        # Определяем CAVOK
+        # Determine CAVOK status
         cavok = "CAVOK" in self.raw_metar
 
-        # Парсим ветер
+        # Parse wind data
         wind_data = self._parse_wind(raw_parts)
 
-        # Парсим температуру и точку росы
+        # Parse temperature and dew point
         temp, dew = self._parse_temp_dew(raw_parts)
 
-        # Парсим давление
+        # Parse pressure
         pressure = self._parse_pressure(raw_parts)
 
-        # Рассчитываем влажность
+        # Calculate humidity
         humidity = self._calculate_humidity(temp, dew)
 
-        # Парсим облачность
+        # Parse cloud data
         cloud_layers = self.parse_cloud_layers()
 
-        # Обработка видимости
+        # Process visibility
         visibility = None
         if cavok:
-            visibility = 10.0  # CAVOK означает видимость 10 км
+            visibility = 10.0  # CAVOK means 10 km visibility
         else:
             for i, part in enumerate(raw_parts):
                 if part.endswith('MPS') and i + 1 < len(raw_parts):
                     next_part = raw_parts[i + 1]
                     if next_part.isdigit():
-                        visibility = float(next_part) / 1000  # Конвертируем метры в километры
+                        visibility = float(next_part) / 1000  # Convert meters to kilometers
                         break
 
-        # Парсим погодные явления (без учета TEMPO)
+        # Parse weather phenomena (excluding TEMPO)
         weather_conditions = []
         tempo_index = len(raw_parts)
         if 'TEMPO' in raw_parts:
@@ -367,22 +367,22 @@ class MetarParser:
 
         try:
             for part in raw_parts:
-                # Парсим основную информацию о ветре (направление и скорость)
+                # Parse main wind information (direction and speed)
                 if 'KT' in part:
                     match = re.match(r'(\d{3})(\d{2,3})(?:G(\d{2,3}))?KT', part)
                     if match:
                         direction = int(match.group(1))
                         speed_kt = int(match.group(2))
 
-                        # Валидация направления ветра
+                        # Validate wind direction
                         if 0 <= direction <= 360:
                             result["direction"] = float(direction)
                         else:
                             _LOGGER.warning("Invalid wind direction: %s°", direction)
                             continue
 
-                        # Валидация скорости ветра
-                        if 0 <= speed_kt <= 200:  # разумный максимум для узлов
+                        # Validate wind speed
+                        if 0 <= speed_kt <= 200:  # reasonable maximum for knots
                             result["speed"] = round(speed_kt * 1.852, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
@@ -390,7 +390,7 @@ class MetarParser:
 
                         if match.group(3):
                             gust_kt = int(match.group(3))
-                            if 0 <= gust_kt <= 300:  # разумный максимум для порывов
+                            if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
                                 result["gust"] = round(gust_kt * 1.852, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
@@ -408,15 +408,15 @@ class MetarParser:
                         direction = int(match.group(1))
                         speed_ms = int(match.group(2))
 
-                        # Валидация направления ветра
+                        # Validate wind direction
                         if 0 <= direction <= 360:
                             result["direction"] = float(direction)
                         else:
                             _LOGGER.warning("Invalid wind direction: %s°", direction)
                             continue
 
-                        # Валидация скорости ветра
-                        if 0 <= speed_ms <= 100:  # разумный максимум для м/с
+                        # Validate wind speed
+                        if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
                             result["speed"] = round(speed_ms * 3.6, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
@@ -424,7 +424,7 @@ class MetarParser:
 
                         if match.group(3):
                             gust_ms = int(match.group(3))
-                            if 0 <= gust_ms <= 150:  # разумный максимум для порывов в м/с
+                            if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
                                 result["gust"] = round(gust_ms * 3.6, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
@@ -436,14 +436,14 @@ class MetarParser:
                             result["speed"]
                         )
 
-                # Парсим переменное направление ветра
-                elif 'V' in part and len(part) == 7:  # формат: 180V240
+                # Parse variable wind direction
+                elif 'V' in part and len(part) == 7:  # format: 180V240
                     match = re.match(r'(\d{3})V(\d{3})', part)
                     if match:
                         start_dir = int(match.group(1))
                         end_dir = int(match.group(2))
                         
-                        # Валидация направлений
+                        # Validate directions
                         if 0 <= start_dir <= 360 and 0 <= end_dir <= 360:
                             result["variable"] = f"{start_dir:03d}°-{end_dir:03d}°"
                             _LOGGER.debug("Parsed variable wind direction: %s", result["variable"])
@@ -466,7 +466,7 @@ class MetarParser:
                     temp_val = float(temp.replace('M', '-'))
                     dew_val = float(dew.replace('M', '-'))
 
-                    # Валидация диапазонов
+                    # Validate value ranges
                     if not -100 <= temp_val <= 60:
                         _LOGGER.warning("Temperature %s°C outside valid range", temp_val)
                         return None, None
