@@ -90,6 +90,113 @@ data:
   station: KJFK
 ```
 
+## Automation Examples
+
+### Weather Alert Notification
+```yaml
+alias: "Weather Alert - High Wind Speed"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.metar_kjfk_wind_speed
+    above: 50  # km/h
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "High Wind Alert"
+      message: "Wind speed at JFK: {{ states('sensor.metar_kjfk_wind_speed') }} km/h"
+```
+
+### Temperature Trend Monitoring
+```yaml
+alias: "Temperature Drop Alert"
+trigger:
+  - platform: template
+    value_template: >
+      {{ state_attr('sensor.metar_kjfk_temperature', 'trend') == 'falling' and
+         (states('sensor.metar_kjfk_temperature') | float) < 0 }}
+action:
+  - service: climate.set_temperature
+    target:
+      entity_id: climate.home_thermostat
+    data:
+      temperature: 22
+```
+
+### Visibility-Based Automation
+```yaml
+alias: "Low Visibility - Turn On Outdoor Lights"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.metar_kjfk_visibility
+    below: 1.0  # km
+action:
+  - service: light.turn_on
+    target:
+      entity_id: light.outdoor_lights
+    data:
+      brightness: 255
+```
+
+### Dashboard Card Example
+```yaml
+type: entities
+title: METAR Weather - KJFK
+entities:
+  - entity: sensor.metar_kjfk_temperature
+    name: Temperature
+  - entity: sensor.metar_kjfk_wind_speed
+    name: Wind Speed
+  - entity: sensor.metar_kjfk_wind_direction
+    name: Wind Direction
+  - entity: sensor.metar_kjfk_visibility
+    name: Visibility
+  - entity: sensor.metar_kjfk_pressure
+    name: Pressure
+  - entity: sensor.metar_kjfk_weather
+    name: Weather Conditions
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Integration Not Loading
+- Check that the ICAO code is valid (4 characters, uppercase)
+- Ensure internet connectivity to access METAR data
+- Check Home Assistant logs for specific error messages
+
+#### No Data or Sensors Unavailable
+- Verify the airport station is active and reporting METAR data
+- Some small airports may not provide continuous data
+- Check if the station code exists: [Aviation Weather Center](https://aviationweather.gov/metar)
+
+#### Incorrect Units
+- The integration automatically detects your Home Assistant unit system
+- Temperature: Celsius (metric) / Fahrenheit (imperial)
+- Wind speed: km/h (metric) / mph (imperial)
+- Distance: kilometers (metric) / miles (imperial)
+
+#### Missing Historical Data
+- Historical data is stored for 24 hours maximum
+- Data is cleaned up automatically to prevent storage issues
+- Use the `clear_history` service to reset historical data if needed
+
+#### Performance Issues
+- The integration updates every 30 minutes by default
+- Large numbers of stations may impact performance
+- Consider reducing update frequency for non-critical stations
+
+### Getting Help
+
+1. Check the [GitHub Issues](https://github.com/smkrv/ha-metar-weather/issues)
+2. Enable debug logging:
+   ```yaml
+   logger:
+     logs:
+       custom_components.ha_metar_weather: debug
+   ```
+3. Provide relevant log entries when reporting issues
+
 ## Data Source
 
 This integration uses data from the NOAA Aviation Digital Data Service (ADDS). Please ensure you comply with their [terms of use](https://www.weather.gov/disclaimer).
