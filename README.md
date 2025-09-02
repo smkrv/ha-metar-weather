@@ -6,11 +6,17 @@
 
 A comprehensive Home Assistant custom integration that provides real-time aviation weather data using METAR (METeorological Aerodrome Reports) from airport weather stations worldwide. This integration transforms raw METAR data into structured Home Assistant sensors with advanced features like historical tracking and trend analysis.
 
-<img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.jpg" alt="HA METAR Weather" style="width: 50%; max-width: 256px; max-height: 128px; aspect-ratio: 2/1; object-fit: contain;"/>
+<div align="center">
+  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.jpg" alt="HA METAR Weather" width="400"/>
+</div>
+
+## Installation
+
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=smkrv&repository=ha-metar-weather&category=Integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" width="210" height="auto"></a>
 
 ## Requirements
 
-- **Home Assistant**: Version 2023.1.0 or higher
+- **Home Assistant**: Version 2024.10.0 or higher
 - **Python**: 3.10 or higher (included with Home Assistant)
 - **Internet Connection**: Required for METAR data retrieval
 - **Memory**: Minimal impact, approximately 5-10MB per station
@@ -586,8 +592,8 @@ curl -s "https://aviationweather.gov/adds/dataserver_current/httpparam?dataSourc
 When creating issues, please include:
 
 ```
-**Home Assistant Version**: 2024.1.0
-**Integration Version**: 1.0.0  
+**Home Assistant Version**: 2024.10.0
+**Integration Version**: Latest  
 **ICAO Station(s)**: KJFK, KLGA
 **Error Description**: Brief description
 **Logs**: (paste relevant debug logs)
@@ -727,9 +733,3 @@ If this integration has been valuable and you wish to express appreciation finan
 `TXC9zYHYPfWUGi4Sv4R1ctTBGScXXQk5HZ`
 
 *Remember: Open-source thrives on community passion and collaboration!*
-
----
-
-**Version**: 1.0.0  
-**Last Updated**: January 2024  
-**Compatibility**: Home Assistant 2023.1.0+
