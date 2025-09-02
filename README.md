@@ -6,12 +6,8 @@
 
 A comprehensive Home Assistant custom integration that provides real-time aviation weather data using METAR (METeorological Aerodrome Reports) from airport weather stations worldwide. This integration transforms raw METAR data into structured Home Assistant sensors with advanced features like historical tracking and trend analysis.
 
-> **⚠️ ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ / IMPORTANT NOTICE**
+> **⚠️ IMPORTANT NOTICE**
 > 
-> **Эта интеграция НЕ СЕРТИФИЦИРОВАНА для авиационной навигации или планирования полетов!** 
-> Данные METAR предоставляются только в информационных целях. 
-> Всегда используйте официальные авиационные источники погоды и сертифицированные инструменты планирования полетов для авиационной деятельности.
->
 > **This integration is NOT certified for aviation navigation or flight planning!** 
 > METAR data provided is for informational purposes only. 
 > Always consult official aviation weather sources and certified flight planning tools for aviation activities.
