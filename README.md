@@ -6,6 +6,16 @@
 
 A comprehensive Home Assistant custom integration that provides real-time aviation weather data using METAR (METeorological Aerodrome Reports) from airport weather stations worldwide. This integration transforms raw METAR data into structured Home Assistant sensors with advanced features like historical tracking and trend analysis.
 
+> **⚠️ ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ / IMPORTANT NOTICE**
+> 
+> **Эта интеграция НЕ СЕРТИФИЦИРОВАНА для авиационной навигации или планирования полетов!** 
+> Данные METAR предоставляются только в информационных целях. 
+> Всегда используйте официальные авиационные источники погоды и сертифицированные инструменты планирования полетов для авиационной деятельности.
+>
+> **This integration is NOT certified for aviation navigation or flight planning!** 
+> METAR data provided is for informational purposes only. 
+> Always consult official aviation weather sources and certified flight planning tools for aviation activities.
+
 <div align="center">
   <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.jpg" alt="HA METAR Weather" width="400"/>
 </div>
@@ -36,11 +46,10 @@ METAR reports are standardized aviation weather observations that include:
 - **Update Frequency**: Every 30 minutes (configurable)
 - **Data Retention**: 24-hour historical storage per station
 
-### Performance Characteristics
-- **API Rate Limits**: Complies with NOAA service limits
-- **Response Time**: Typically 2-5 seconds per update
-- **Storage Impact**: ~1MB per station per month
-- **Processing**: Asynchronous updates to prevent blocking
+### Performance
+- Updates every 30 minutes automatically
+- Minimal impact on Home Assistant performance
+- Works with multiple airport stations
 
 ## Features
 
@@ -537,48 +546,6 @@ cards:
 - **Monitor logs** for rate limit messages
 - **Contact NOAA** if persistent issues
 
-### Advanced Diagnostics
-
-#### Enable Detailed Logging
-```yaml
-# configuration.yaml
-logger:
-  default: warning
-  logs:
-    custom_components.ha_metar_weather: debug
-    custom_components.ha_metar_weather.sensor: info
-    custom_components.ha_metar_weather.api_client: debug
-    custom_components.ha_metar_weather.metar_parser: info
-```
-
-#### Integration Health Check
-Create automation to monitor integration health:
-```yaml
-alias: "METAR Integration Health Check"
-trigger:
-  - platform: time_pattern
-    minutes: "/15"
-condition:
-  - condition: template
-    value_template: >
-      {{ (now() - states.sensor.metar_kjfk_temperature.last_changed).total_seconds() > 3600 }}
-action:
-  - service: persistent_notification.create
-    data:
-      title: "METAR Data Warning" 
-      message: "No data update from KJFK station in over 1 hour"
-      notification_id: metar_health_check
-```
-
-#### Manual API Testing
-Test METAR data retrieval manually:
-```bash
-# Test specific station
-curl -s "https://aviationweather.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=xml&stationString=KJFK&hoursBeforeNow=1" | xmllint --format -
-
-# Test multiple stations  
-curl -s "https://aviationweather.gov/adds/dataserver_current/httpparam?dataSource=metars&requestType=retrieve&format=xml&stationString=KJFK,KLGA,KEWR&hoursBeforeNow=1"
-```
 
 ### Getting Support
 
@@ -633,53 +600,6 @@ This integration complies with NOAA/NWS data usage policies:
 - **Accuracy**: Professional grade equipment, but subject to calibration
 - **Historical Data**: Limited to 24-hour retention in this integration
 
-## Contributing
-
-### Development Setup
-1. **Fork the repository**
-2. **Clone locally**:
-   ```bash
-   git clone https://github.com/yourusername/ha-metar-weather.git
-   ```
-3. **Create development environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
-4. **Install pre-commit hooks**:
-   ```bash
-   pre-commit install
-   ```
-
-### Code Standards
-- **Python 3.10+** compatibility required
-- **Black formatting** (line length: 88)
-- **Pylint compliance** (score > 9.0)
-- **Type hints** for all functions
-- **Docstrings** following Google style
-- **Unit tests** for all new features
-
-### Contribution Types Welcome
-1. **Bug Fixes**: Issue reproduction and resolution
-2. **Feature Enhancements**: New sensors or functionality
-3. **Documentation**: Improved guides and examples
-4. **Testing**: Additional unit tests and integration tests
-5. **Translations**: UI text localization
-6. **Performance**: Optimization and efficiency improvements
-
-### Testing
-```bash
-# Run unit tests
-python -m pytest tests/
-
-# Run integration tests
-python -m pytest tests/integration/
-
-# Check code quality
-pylint custom_components/ha_metar_weather/
-black --check custom_components/ha_metar_weather/
-```
 
 ## Legal Disclaimer and Limitation of Liability
 
@@ -718,13 +638,13 @@ The best support comes from community engagement:
 - **Star the repository** on GitHub
 - **Write reviews** and tutorials
 
-### Development Support
-Technical contributions are highly valued:
-- **Code contributions** via pull requests
-- **Documentation improvements**
-- **Translation assistance**
-- **Beta testing** of new features
-- **Performance optimization**
+### Help Improve
+You can help make this integration better:
+- **Report bugs** when you find them
+- **Suggest new features** you'd like to see
+- **Share your experience** with other users
+- **Help with translations** to other languages
+- **Test new versions** before release
 
 ### Financial Support
 If this integration has been valuable and you wish to express appreciation financially:
