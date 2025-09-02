@@ -93,12 +93,15 @@ UNIT_MAPPINGS: Final[Dict[str, Dict[str, str]]] = {
     "wind_gust": {
         CONF_UNIT_SYSTEM_METRIC: UnitOfSpeed.KILOMETERS_PER_HOUR,
         CONF_UNIT_SYSTEM_IMPERIAL: UnitOfSpeed.MILES_PER_HOUR
+    },
+    "cloud_coverage_height": {
+        CONF_UNIT_SYSTEM_METRIC: UnitOfLength.METERS,
+        CONF_UNIT_SYSTEM_IMPERIAL: UnitOfLength.FEET
     }
 }
 
 # Fixed units that don't change based on system preferences
 FIXED_UNITS: Final[Dict[str, str]] = {
-    "cloud_coverage_height": UnitOfLength.FEET,
     "wind_direction": DEGREE,
     "humidity": PERCENTAGE,
 }

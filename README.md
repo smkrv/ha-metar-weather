@@ -234,6 +234,11 @@ Each configured station creates sensors with the pattern:
   - **Attributes**: ceiling_height, cloud_layers, coverage_oktas
   - **Device Class**: None
 
+- **`sensor.metar_[ICAO]_cloud_coverage_height`**
+  - **Unit**: m (metric) / ft (imperial) - automatically adjusts based on system settings
+  - **Attributes**: coverage_type, measurement_source
+  - **Device Class**: distance
+
 ### Raw Data Sensor
 - **`sensor.metar_[ICAO]_raw_metar`**
   - **State**: Complete METAR string
