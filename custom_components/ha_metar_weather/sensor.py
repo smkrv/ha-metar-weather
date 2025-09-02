@@ -168,7 +168,8 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_height",
         name="Cloud Coverage Height",
-        native_unit_of_measurement=UnitOfLength.FEET,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("cloud_coverage_height"),
         icon="mdi:cloud-outline",
         has_history=False,
