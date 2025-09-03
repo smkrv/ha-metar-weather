@@ -1,0 +1,274 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "HA METAR Weather Einrichtung",
+                "description": "Einrichtung der METAR-Wetterüberwachung. Datenquelle: https://tgftp.nws.noaa.gov/\nBitte stellen Sie sicher, dass Sie die Nutzungsbedingungen der Datenquelle einhalten.",
+                "data": {
+                    "icao": "ICAO Flughafencode",
+                    "terms_accepted": "Ich akzeptiere die Nutzungsbedingungen der Datenquelle"
+                }
+            }
+        },
+        "error": {
+            "invalid_icao": "Ungültiges ICAO-Code Format",
+            "terms_not_accepted": "Sie müssen die Nutzungsbedingungen akzeptieren",
+            "station_exists": "Diese Station ist bereits konfiguriert",
+            "cannot_connect": "Verbindung zur Station fehlgeschlagen",
+            "unknown": "Unerwarteter Fehler"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "METAR Stationen verwalten",
+                "description": "Aktuell konfigurierte Stationen:\n{stations}"
+            },
+            "station_add": {
+                "title": "Station hinzufügen",
+                "description": "ICAO-Code für die neue Station eingeben",
+                "data": {
+                    "icao": "ICAO Flughafencode"
+                }
+            },
+            "station_configure": {
+                "title": "Stationskonfiguration",
+                "description": "Möchten Sie eine weitere Station hinzufügen?",
+                "data": {
+                    "add_another": "Weitere Station hinzufügen"
+                }
+            }
+        }
+    },
+    "services": {
+        "update_station": {
+            "name": "Station aktualisieren",
+            "description": "Erzwungene Aktualisierung der METAR-Daten für die angegebene Station.",
+            "fields": {
+                "station": {
+                    "name": "Station",
+                    "description": "ICAO-Code der zu aktualisierenden Station"
+                }
+            }
+        },
+        "clear_history": {
+            "name": "Verlauf löschen",
+            "description": "Verlaufsdaten für die angegebene Station löschen.",
+            "fields": {
+                "station": {
+                    "name": "Station",
+                    "description": "ICAO-Code der Station zum Löschen des Verlaufs"
+                }
+            }
+        }
+    },
+    "entity": {
+        "sensor": {
+            "temperature": {
+                "name": "Temperatur",
+                "state_attributes": {
+                    "trend": {
+                        "state": {
+                            "rising": "Steigend",
+                            "falling": "Fallend",
+                            "stable": "Stabil"
+                        }
+                    }
+                }
+            },
+            "dew_point": {
+                "name": "Taupunkt"
+            },
+            "wind_speed": {
+                "name": "Windgeschwindigkeit"
+            },
+            "wind_direction": {
+                "name": "Windrichtung"
+            },
+            "wind_gust": {
+                "name": "Windböen",
+                "state_attributes": {
+                    "trend": {
+                        "state": {
+                            "rising": "Zunehmend",
+                            "falling": "Abnehmend",
+                            "stable": "Stabil"
+                        }
+                    }
+                }
+            },
+            "wind_variable_direction": {
+                "name": "Variable Windrichtung",
+                "state_attributes": {
+                    "from_direction": "Von Richtung",
+                    "to_direction": "Bis Richtung"
+                }
+            },
+            "visibility": {
+                "name": "Sichtweite"
+            },
+            "pressure": {
+                "name": "Luftdruck"
+            },
+            "humidity": {
+                "name": "Relative Feuchtigkeit"
+            },
+            "weather": {
+                "name": "Wetterbedingungen"
+            },
+            "cloud_coverage": {
+                "name": "Bewölkung"
+            },
+            "cloud_layers": {
+                "name": "Wolkenschichten"
+            },
+            "raw_metar": {
+                "name": "Roh-METAR"
+            },
+            "report_type": {
+                "name": "Berichtstyp"
+            },
+            "auto_indicator": {
+                "name": "Auto-Indikator"
+            },
+            "cavok": {
+                "name": "CAVOK"
+            },
+            "runway_states": {
+                "name": "Zustand aller Landebahnen"
+            },
+            "runway_state": {
+                "name": "Landebahn-Zustand",
+                "state_attributes": {
+                    "surface": {
+                        "state": {
+                            "clear_and_dry": "Sauber und trocken",
+                            "damp": "Feucht",
+                            "wet": "Nass",
+                            "rime": "Reif oder Frost",
+                            "dry_snow": "Trockener Schnee",
+                            "wet_snow": "Nasser Schnee",
+                            "slush": "Schneematsch",
+                            "ice": "Eis",
+                            "compacted_snow": "Verdichteter Schnee",
+                            "frozen_ruts": "Gefrorene Spurrinnen"
+                        }
+                    },
+                    "coverage": {
+                        "state": {
+                            "less_10": "Weniger als 10%",
+                            "11_25": "11-25%",
+                            "26_50": "26-50%",
+                            "51_100": "51-100%"
+                        }
+                    },
+                    "friction": {
+                        "state": {
+                            "poor": "Schlecht",
+                            "medium_poor": "Mittel/Schlecht",
+                            "medium": "Mittel",
+                            "medium_good": "Mittel/Gut",
+                            "good": "Gut"
+                        }
+                    }
+                }
+            },
+            "recent_weather": {
+                "name": "Kürzliches Wetter"
+            },
+            "wind_shear": {
+                "name": "Windscherung"
+            },
+            "trend": {
+                "name": "Trend"
+            },
+            "remarks": {
+                "name": "Bemerkungen"
+            }
+        }
+    },
+    "state_attributes": {
+        "last_update": "Letzte Aktualisierung",
+        "station": "Station",
+        "station_name": "Stationsname",
+        "raw_metar": "Roh-METAR",
+        "min_24h": "24h Minimum",
+        "max_24h": "24h Maximum",
+        "average_24h": "24h Durchschnitt",
+        "trend": "Trend",
+        "wind_gust": "Windböen",
+        "wind_variable_direction": "Variable Windrichtung",
+        "wind_variation_from": "Windvariation von",
+        "wind_variation_to": "Windvariation bis"
+    },
+    "weather": {
+        "intensity": {
+            "light": "Schwach",
+            "heavy": "Stark",
+            "vicinity": "In der Nähe"
+        },
+        "descriptor": {
+            "shallow": "Oberflächlich",
+            "partial": "Teilweise",
+            "patches": "Stellenweise",
+            "low_drifting": "Niedriges Treiben",
+            "blowing": "Verwehend",
+            "showers": "Schauer",
+            "thunderstorm": "Gewitter",
+            "freezing": "Gefrierend"
+        },
+        "phenomenon": {
+            "drizzle": "Nieselregen",
+            "rain": "Regen",
+            "snow": "Schnee",
+            "snow_grains": "Schneekörner",
+            "ice_crystals": "Eiskristalle",
+            "ice_pellets": "Eiskügelchen",
+            "hail": "Hagel",
+            "small_hail": "Kleinhagel",
+            "unknown": "Unbekannter Niederschlag",
+            "mist": "Dunst",
+            "fog": "Nebel",
+            "smoke": "Rauch",
+            "volcanic_ash": "Vulkanasche",
+            "dust": "Weitverbreiteter Staub",
+            "sand": "Sand",
+            "haze": "Trübung",
+            "spray": "Gischt",
+            "dust_whirls": "Staub-/Sandwirbel",
+            "squalls": "Böen",
+            "funnel_cloud": "Trichterwolke",
+            "sandstorm": "Sandsturm",
+            "duststorm": "Staubsturm"
+        }
+    },
+    "cloud_coverage": {
+        "clear_sky": "Klarer Himmel",
+        "clear": "Klar",
+        "no_significant": "Keine bedeutenden Wolken",
+        "few": "Wenige Wolken (1-2 Achtel)",
+        "scattered": "Aufgelockerte Bewölkung (3-4 Achtel)",
+        "broken": "Bedeckt mit Lücken (5-7 Achtel)",
+        "overcast": "Bedeckt (8 Achtel)",
+        "vertical_visibility": "Vertikale Sicht"
+    },
+    "runway": {
+        "condition": {
+            "contamination": "Verunreinigung",
+            "coverage": "Bedeckung",
+            "depth": "Tiefe",
+            "friction": "Reibung",
+            "braking": "Bremswirkung"
+        }
+    },
+    "wind": {
+        "variable_direction": {
+            "from": "Von",
+            "to": "Bis",
+            "varying_between": "Variierend zwischen"
+        },
+        "gust": {
+            "up_to": "Bis zu"
+        }
+    }
+}

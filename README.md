@@ -56,6 +56,7 @@ METAR reports are standardized aviation weather observations that include:
 - **Historical data tracking** with 24-hour retention and cleanup
 - **Trend analysis** with rising/falling/stable indicators
 - **Unit system integration** supporting both metric and imperial units
+- **Multi-language support** with English, Russian (Русский), and German (Deutsch) localizations
 - **Error handling and recovery** with automatic retry mechanisms
 
 ### Weather Parameters Monitored
@@ -129,6 +130,16 @@ For Home Assistant Container or Docker installations:
 - Ensure the container has internet access
 - Mount custom_components directory properly
 - Consider timezone settings for accurate timestamps
+
+## Localization
+
+The integration supports multiple languages for a better user experience:
+
+- **English** (en) - Default language
+- **Russian** (Русский) - Full localization including aviation meteorological terms
+- **German** (Deutsch) - Complete translation with proper German aviation terminology
+
+The interface language automatically matches your Home Assistant's configured language. All weather phenomena, sensor names, configuration dialogs, and service descriptions are fully translated.
 
 ## Configuration
 
