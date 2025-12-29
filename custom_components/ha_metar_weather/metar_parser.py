@@ -75,7 +75,7 @@ class MetarParser:
             # Search for string parts containing cloud information
             parts = self.raw_metar.split()
             for part in parts:
-                if any(part.startswith(prefix) for prefix in ['SCT', 'BKN', 'OVC']):
+                if any(part.startswith(prefix) for prefix in ['FEW', 'SCT', 'BKN', 'OVC']):
                     coverage_code = part[:3]
                     coverage = self.CLOUD_COVERAGE.get(coverage_code, coverage_code)
 
@@ -319,20 +319,45 @@ class MetarParser:
         if cavok:
             visibility = 10.0  # CAVOK means 10 km visibility
         else:
+            # Find the wind part index to start looking for visibility after it
+            wind_index = -1
             for i, part in enumerate(raw_parts):
-                if part.endswith('MPS') and i + 1 < len(raw_parts):
-                    next_part = raw_parts[i + 1]
-                    if next_part.isdigit():
-                        # Special case for 9999 (10 km or more)
-                        if next_part == "9999":
+                if part.endswith('KT') or part.endswith('MPS'):
+                    wind_index = i
+                    break
+
+            # Look for visibility after wind part
+            if wind_index >= 0:
+                for i, part in enumerate(raw_parts[wind_index + 1:], start=wind_index + 1):
+                    # Skip variable wind direction (e.g., 180V240)
+                    if re.match(r'^\d{3}V\d{3}$', part):
+                        continue
+
+                    # Check for 4-digit visibility in meters (e.g., 9999, 7000, 0800)
+                    if re.match(r'^\d{4}$', part):
+                        vis_meters = int(part)
+                        if vis_meters == 9999:
+                            visibility = 10.0  # 9999 means 10 km or more
+                        else:
+                            visibility = vis_meters / 1000  # Convert meters to kilometers
+                        _LOGGER.debug("Parsed visibility: %s meters = %s km", vis_meters, visibility)
+                        break
+
+                    # Check for visibility with NDV (no directional variation) suffix
+                    ndv_match = re.match(r'^(\d{4})NDV$', part)
+                    if ndv_match:
+                        vis_meters = int(ndv_match.group(1))
+                        if vis_meters == 9999:
                             visibility = 10.0
                         else:
-                            visibility = float(next_part) / 1000  # Convert meters to kilometers
+                            visibility = vis_meters / 1000
+                        _LOGGER.debug("Parsed NDV visibility: %s meters = %s km", vis_meters, visibility)
                         break
-                elif part == "9999":
-                    # Handle 9999 visibility code when not immediately after wind
-                    visibility = 10.0
-                    break
+
+                    # Stop at cloud, temperature, or pressure parts
+                    if (part.startswith(('FEW', 'SCT', 'BKN', 'OVC', 'SKC', 'CLR', 'NSC', 'VV')) or
+                        '/' in part or part.startswith('Q') or part.startswith('A')):
+                        break
 
         # Parse weather phenomena (excluding TEMPO)
         weather_conditions = []
@@ -394,6 +419,37 @@ class MetarParser:
             for part in raw_parts:
                 # Parse main wind information (direction and speed)
                 if 'KT' in part:
+                    # Handle VRB (variable) wind direction: VRB03KT, VRB03G10KT
+                    vrb_match = re.match(r'VRB(\d{2,3})(?:G(\d{2,3}))?KT', part)
+                    if vrb_match:
+                        speed_kt = int(vrb_match.group(1))
+
+                        # Variable wind direction - set to None but mark as variable
+                        result["direction"] = None
+                        result["variable"] = "VRB"
+
+                        # Validate wind speed
+                        if 0 <= speed_kt <= 200:  # reasonable maximum for knots
+                            result["speed"] = round(speed_kt * 1.852, 1)
+                        else:
+                            _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
+                            continue
+
+                        if vrb_match.group(2):
+                            gust_kt = int(vrb_match.group(2))
+                            if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
+                                result["gust"] = round(gust_kt * 1.852, 1)
+                            else:
+                                _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
+
+                        _LOGGER.debug(
+                            "Parsed VRB KT wind: variable direction at %s kt (%s km/h)",
+                            speed_kt,
+                            result["speed"]
+                        )
+                        continue
+
+                    # Handle standard wind direction: 13008KT, 13008G15KT
                     match = re.match(r'(\d{3})(\d{2,3})(?:G(\d{2,3}))?KT', part)
                     if match:
                         direction = int(match.group(1))
@@ -428,6 +484,37 @@ class MetarParser:
                         )
 
                 elif 'MPS' in part:
+                    # Handle VRB (variable) wind direction: VRB03MPS, VRB03G10MPS
+                    vrb_match = re.match(r'VRB(\d{2,3})(?:G(\d{2,3}))?MPS', part)
+                    if vrb_match:
+                        speed_ms = int(vrb_match.group(1))
+
+                        # Variable wind direction - set to None but mark as variable
+                        result["direction"] = None
+                        result["variable"] = "VRB"
+
+                        # Validate wind speed
+                        if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
+                            result["speed"] = round(speed_ms * 3.6, 1)
+                        else:
+                            _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
+                            continue
+
+                        if vrb_match.group(2):
+                            gust_ms = int(vrb_match.group(2))
+                            if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
+                                result["gust"] = round(gust_ms * 3.6, 1)
+                            else:
+                                _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
+
+                        _LOGGER.debug(
+                            "Parsed VRB MPS wind: variable direction at %s m/s (%s km/h)",
+                            speed_ms,
+                            result["speed"]
+                        )
+                        continue
+
+                    # Handle standard wind direction: 13008MPS, 13008G15MPS
                     match = re.match(r'(\d{3})(\d{2,3})(?:G(\d{2,3}))?MPS', part)
                     if match:
                         direction = int(match.group(1))
@@ -486,10 +573,27 @@ class MetarParser:
         """Parse temperature and dew point."""
         try:
             for part in raw_parts:
-                if '/' in part and ('M' in part or part[0].isdigit() or part[0] == '-'):
-                    temp, dew = part.split('/')
-                    temp_val = float(temp.replace('M', '-'))
-                    dew_val = float(dew.replace('M', '-'))
+                # Temperature/dew point format: 04/02, M05/M10, 15/M02
+                if '/' in part:
+                    parts = part.split('/')
+                    # Must have exactly 2 parts for temp/dew
+                    if len(parts) != 2:
+                        continue
+
+                    temp_str, dew_str = parts
+
+                    # Check if this looks like temp/dew (starts with digit or M for minus)
+                    if not (temp_str and (temp_str[0].isdigit() or temp_str[0] == 'M')):
+                        continue
+                    if not (dew_str and (dew_str[0].isdigit() or dew_str[0] == 'M')):
+                        continue
+
+                    # Skip visibility parts like 1200/0800 (4-digit numbers)
+                    if len(temp_str) > 3 or len(dew_str) > 3:
+                        continue
+
+                    temp_val = float(temp_str.replace('M', '-'))
+                    dew_val = float(dew_str.replace('M', '-'))
 
                     # Validate value ranges
                     if not -100 <= temp_val <= 60:
@@ -506,10 +610,31 @@ class MetarParser:
             return None, None
 
     def _parse_pressure(self, raw_parts: List[str]) -> Optional[float]:
-        """Parse pressure information."""
+        """Parse pressure information.
+
+        Handles both QNH (hPa) and altimeter (inHg) formats:
+        - Q1013 = 1013 hPa
+        - A3012 = 30.12 inHg (converted to hPa)
+        """
         for part in raw_parts:
-            if part.startswith('Q'):
-                return float(part[1:])
+            # European format: Q followed by pressure in hPa
+            if part.startswith('Q') and len(part) >= 4:
+                try:
+                    return float(part[1:])
+                except ValueError:
+                    continue
+
+            # American format: A followed by pressure in inHg (e.g., A3012 = 30.12 inHg)
+            if part.startswith('A') and len(part) == 5:
+                try:
+                    inhg = float(part[1:]) / 100  # A3012 -> 30.12
+                    # Convert inHg to hPa (1 inHg = 33.8639 hPa)
+                    hpa = round(inhg * 33.8639, 1)
+                    _LOGGER.debug("Parsed A pressure: %s inHg = %s hPa", inhg, hpa)
+                    return hpa
+                except ValueError:
+                    continue
+
         return None
 
     def _calculate_humidity(self, temp: Optional[float], dew: Optional[float]) -> Optional[float]:

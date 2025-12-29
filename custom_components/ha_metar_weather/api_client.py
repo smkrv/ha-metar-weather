@@ -12,10 +12,6 @@ from avwx.exceptions import BadStation, SourceError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.const import (
-    CONF_UNIT_SYSTEM_METRIC,
-    CONF_UNIT_SYSTEM_IMPERIAL,
-)
 from .const import (
     RETRY_INTERVALS,
     VALUE_RANGES,
@@ -38,71 +34,6 @@ class MetarApiClient:
         # Use existing Home Assistant session
         self.session = async_get_clientsession(hass)
         self._retry_count = 0
-
-        try:
-            from homeassistant.const import UnitOfTemperature
-
-            self._unit_system = (
-                CONF_UNIT_SYSTEM_METRIC
-                if hass.config.units.temperature_unit == UnitOfTemperature.CELSIUS
-                else CONF_UNIT_SYSTEM_IMPERIAL
-            )
-
-            _LOGGER.debug(
-                "Unit system determined: %s (based on temperature_unit: %s)",
-                self._unit_system,
-                hass.config.units.temperature_unit
-            )
-
-        except Exception as err:
-            self._unit_system = CONF_UNIT_SYSTEM_METRIC
-            _LOGGER.warning(
-                "Could not determine unit system (%s), using metric as default",
-                str(err)
-            )
-
-    def _convert_temperature(self, temp: float) -> float:
-        """Convert temperature to system units."""
-        if self._unit_system == CONF_UNIT_SYSTEM_IMPERIAL:
-            return round((temp * 9/5) + 32, 1)
-        return round(temp, 1)
-
-    def _convert_wind_speed(self, speed: float) -> float:
-        """Convert wind speed from m/s to km/h or mph."""
-        if self._unit_system == CONF_UNIT_SYSTEM_IMPERIAL:
-            return round(speed * 2.237, 1)  # m/s to mph
-        return round(speed * 3.6, 1)  # m/s to km/h
-
-    def _convert_visibility(self, visibility: float) -> float:
-        """Convert visibility to correct units."""
-        if visibility is None:
-            return None
-        # Convert meters to kilometers or miles
-        kilometers = visibility / 1000  # first convert meters to kilometers
-        if self._unit_system == CONF_UNIT_SYSTEM_IMPERIAL:
-            return round(kilometers * 0.621371, 1)  # kilometers to miles
-        return round(kilometers, 1)  # keep in kilometers
-
-    def _convert_pressure(self, pressure: float) -> float:
-        """Convert pressure from hPa to inHg or keep as hPa."""
-        if self._unit_system == CONF_UNIT_SYSTEM_IMPERIAL:
-            return round(pressure * 0.02953, 2)  # hPa to inHg
-        return round(pressure, 1)  # keep as hPa
-
-    def _calculate_relative_humidity(self, temp: float, dew_point: float) -> float:
-        """Calculate relative humidity from temperature and dew point."""
-        try:
-            if abs(temp) < 0.0001:  # Prevent division by zero
-                return 100.0
-
-            e = 6.11 * 10.0**(7.5 * dew_point / (237.7 + dew_point))
-            es = 6.11 * 10.0**(7.5 * temp / (237.7 + temp))
-            rh = (e / es) * 100
-            return round(min(100, max(0, rh)), 1)
-
-        except Exception as err:
-            _LOGGER.error("Error calculating humidity: %s", err)
-            return 0.0
 
     def _convert_units(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Convert units based on system preferences."""

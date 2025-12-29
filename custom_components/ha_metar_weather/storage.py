@@ -9,7 +9,7 @@ Storage handling for HA METAR Weather integration.
 from datetime import timedelta
 import logging
 from typing import Dict, List, Optional, Any
-import threading
+import asyncio
 from copy import deepcopy
 
 from homeassistant.core import HomeAssistant
@@ -35,13 +35,13 @@ class MetarHistoryStorage:
         self.hass = hass
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: Dict[str, List[Dict[str, Any]]] = {}
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self._debouncer = Debouncer(
             hass,
             _LOGGER,
             cooldown=1.0,
             immediate=False,
-            function=self._save_data,
+            function=self._async_save_data,
         )
 
     async def async_load(self) -> None:
@@ -54,7 +54,7 @@ class MetarHistoryStorage:
                 self._data = {}
 
             # Cleanup old data on load
-            self._cleanup_old_data()
+            await self._async_cleanup_old_data()
         except Exception as err:
             _LOGGER.error("Error loading storage data: %s", err)
             self._data = {}
@@ -101,19 +101,19 @@ class MetarHistoryStorage:
         """Schedule saving data with debouncing."""
         await self._debouncer.async_call()
 
-    def _save_data(self) -> None:
+    async def _async_save_data(self) -> None:
         """Actually save the data."""
-        with self._lock:
+        async with self._lock:
             try:
                 data_to_save = deepcopy(self._data)
-                self.hass.async_create_task(self.store.async_save(data_to_save))
+                await self.store.async_save(data_to_save)
             except Exception as err:
                 _LOGGER.error("Error saving storage data: %s", err)
                 raise MetarStorageError(f"Failed to save data: {err}") from err
 
     async def async_add_record(self, station: str, record: Dict[str, Any]) -> None:
         """Add a new METAR record for a station."""
-        with self._lock:
+        async with self._lock:
             try:
                 if station not in self._data:
                     self._data[station] = []
@@ -131,12 +131,12 @@ class MetarHistoryStorage:
                 raise MetarStorageError(f"Failed to add record: {err}") from err
 
         # Cleanup old data after adding new record
-        self._cleanup_old_data()
+        await self._async_cleanup_old_data()
         await self.async_save()
 
-    def _cleanup_old_data(self) -> None:
+    async def _async_cleanup_old_data(self) -> None:
         """Remove data older than 24 hours."""
-        with self._lock:
+        async with self._lock:
             now = dt_util.utcnow()
             cutoff = now - timedelta(days=1)
 
@@ -169,29 +169,27 @@ class MetarHistoryStorage:
 
     def get_station_history(self, station: str, key: str) -> List[Any]:
         """Get historical data for a specific key of a station."""
-        with self._lock:
-            try:
-                records = deepcopy(self._data.get(station, []))
-                # Filter data for the specified key
-                history = [
-                    record[key]
-                    for record in records
-                    if key in record
-                ]
-                return history
-            except Exception as err:
-                _LOGGER.error("Error getting history for station %s and key %s: %s", station, key, err)
-                return []
+        try:
+            records = deepcopy(self._data.get(station, []))
+            # Filter data for the specified key
+            history = [
+                record[key]
+                for record in records
+                if key in record
+            ]
+            return history
+        except Exception as err:
+            _LOGGER.error("Error getting history for station %s and key %s: %s", station, key, err)
+            return []
 
     def get_all_station_records(self, station: str) -> List[Dict[str, Any]]:
         """Get all historical records for a station."""
-        with self._lock:
-            try:
-                records = deepcopy(self._data.get(station, []))
-                return records
-            except Exception as err:
-                _LOGGER.error("Error getting records for station %s: %s", station, err)
-                return []
+        try:
+            records = deepcopy(self._data.get(station, []))
+            return records
+        except Exception as err:
+            _LOGGER.error("Error getting records for station %s: %s", station, err)
+            return []
 
     def get_last_record(self, station: str) -> Optional[Dict[str, Any]]:
         """Get the most recent record for a station."""
@@ -204,7 +202,7 @@ class MetarHistoryStorage:
 
     async def async_clear_station(self, station: str) -> None:
         """Clear all history for a specific station."""
-        with self._lock:
+        async with self._lock:
             try:
                 if station in self._data:
                     del self._data[station]
@@ -216,22 +214,23 @@ class MetarHistoryStorage:
 
     async def async_clear_key_history(self, station: str, key: str) -> None:
         """Clear history for a specific key of a station."""
-        with self._lock:
+        async with self._lock:
             try:
                 if station in self._data:
                     self._data[station] = [
                         record for record in self._data[station]
                         if key not in record
                     ]
-                    await self.async_save()
                     _LOGGER.debug("Cleared history for key %s in station %s", key, station)
             except Exception as err:
                 _LOGGER.error("Error clearing key history: %s", err)
                 raise MetarStorageError(f"Failed to clear key history: {err}") from err
 
+        await self.async_save()
+
     async def async_clear_all(self) -> None:
         """Clear all stored data."""
-        with self._lock:
+        async with self._lock:
             try:
                 self._data = {}
             except Exception as err:

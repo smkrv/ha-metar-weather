@@ -20,7 +20,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import (
     HomeAssistant,
     ServiceCall,
-    callback,
 )
 from homeassistant.const import Platform
 from homeassistant.helpers.typing import ConfigType
@@ -155,8 +154,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if station in entry.data[CONF_STATIONS]:
             try:
                 async with async_timeout.timeout(10):
-                    storage._data[station] = []
-                    await storage.async_save()
+                    await storage.async_clear_station(station)
                     _LOGGER.info("Cleared history for station %s", station)
             except asyncio.TimeoutError:
                 _LOGGER.error("Timeout clearing history for %s", station)
@@ -207,9 +205,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        coordinators = hass.data[DOMAIN].pop(entry.entry_id)
-        for coordinator in coordinators.values():
-            # Don't close session as it's managed by Home Assistant
-            coordinator.async_stop = True
+        hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok

@@ -168,6 +168,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_height",
         name="Cloud Coverage Height",
+        native_unit_of_measurement=UnitOfLength.FEET,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("cloud_coverage_height"),
@@ -327,7 +328,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             if self.entity_description.key != "raw_metar":
                 attrs[ATTR_RAW_METAR] = self.coordinator.data.get("raw_metar")
 
-            if self.entity_description.has_history and hasattr(self.hass.data[DOMAIN], "storage"):
+            if self.entity_description.has_history and "storage" in self.hass.data[DOMAIN]:
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station, self.entity_description.key)
                 if history:
@@ -335,13 +336,16 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
 
                     if self.entity_description.state_class == SensorStateClass.MEASUREMENT:
                         try:
-                            values = [
-                                float(item["value"])
-                                for item in history[-24:]
-                                if isinstance(item.get("value"), (int, float)) or
-                                (isinstance(item.get("value"), str) and
-                                 item["value"].replace(".", "", 1).replace("-", "", 1).isdigit())
-                            ]
+                            # history is a list of values, not dicts
+                            values = []
+                            for item in history[-24:]:
+                                if isinstance(item, (int, float)):
+                                    values.append(float(item))
+                                elif isinstance(item, str):
+                                    # Try to parse string as number
+                                    cleaned = item.replace(".", "", 1).replace("-", "", 1)
+                                    if cleaned.isdigit():
+                                        values.append(float(item))
 
                             if values:
                                 attrs["min_24h"] = min(values)
@@ -384,11 +388,21 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return (
-            self.coordinator.last_update_success and
-            self.coordinator.data is not None and
-            self.native_value is not None
-        )
+        # For wind_direction, None is a valid value when wind is VRB (variable)
+        # So we need to check if the key exists in data, not if the value is not None
+        if not self.coordinator.last_update_success or self.coordinator.data is None:
+            return False
+
+        key = self.entity_description.key
+
+        # For sensors where None is a valid state (like wind_direction with VRB wind)
+        # check if the key exists in data rather than checking value
+        if key in ("wind_direction", "wind_gust", "wind_variable_direction"):
+            # These sensors are available if coordinator has data
+            # wind_direction can be None for VRB, wind_gust can be None if no gusts
+            return True
+
+        return self.native_value is not None
 
 
 async def async_setup_entry(
