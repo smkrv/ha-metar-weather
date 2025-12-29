@@ -1,4 +1,4 @@
-# HA METAR Weather
+# <img src="assets/images/icon@2x.png" alt="Logo" height="32" style="vertical-align: middle;"> HA METAR Weather
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/smkrv/ha-metar-weather)](https://github.com/smkrv/ha-metar-weather/releases)
