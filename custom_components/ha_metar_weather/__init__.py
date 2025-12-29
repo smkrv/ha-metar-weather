@@ -141,9 +141,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             except asyncio.CancelledError:
                 raise  # Don't suppress task cancellation
             except asyncio.TimeoutError:
+                # Timeout is a real error - inform the user via exception
                 _LOGGER.error("Timeout clearing history for %s", station)
+                raise ServiceValidationError(
+                    f"Timeout clearing history for {station}",
+                    translation_domain=DOMAIN,
+                    translation_key="clear_history_timeout",
+                    translation_placeholders={"station": station},
+                )
             except Exception as err:
+                # Storage errors should be reported to the user
                 _LOGGER.error("Error clearing history for %s: %s", station, err)
+                raise ServiceValidationError(
+                    f"Failed to clear history for {station}: {err}",
+                    translation_domain=DOMAIN,
+                    translation_key="clear_history_failed",
+                    translation_placeholders={"station": station, "error": str(err)},
+                )
         else:
             raise ServiceValidationError(
                 f"Station {station} is not configured",

@@ -263,16 +263,17 @@ class MetarApiClient:
 async def validate_station(hass: HomeAssistant, icao: str) -> bool:
     """Validate station exists using available sources.
 
+    Uses MetarApiClient which internally handles all exceptions and returns
+    None on failure. No exceptions are expected to propagate from fetch_data()
+    except asyncio.CancelledError which should not be caught.
+
     Args:
         hass: Home Assistant instance
         icao: ICAO airport code
 
     Returns:
-        True if station is valid
+        True if station is valid and returns data, False otherwise
     """
     client = MetarApiClient(hass, icao)
-    try:
-        result = await client.fetch_data()
-        return result is not None
-    except MetarApiClientError:
-        return False
+    result = await client.fetch_data()
+    return result is not None

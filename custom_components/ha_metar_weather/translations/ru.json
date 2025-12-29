@@ -79,6 +79,7 @@
         },
         "error": {
             "cannot_remove_last": "Невозможно удалить последнюю станцию",
+            "station_exists": "Эта станция уже добавлена в этой конфигурации",
             "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции"
         }
     },
@@ -94,6 +95,12 @@
         },
         "storage_not_initialized": {
             "message": "Хранилище не инициализировано"
+        },
+        "clear_history_timeout": {
+            "message": "Таймаут при очистке истории для станции {station}"
+        },
+        "clear_history_failed": {
+            "message": "Не удалось очистить историю для станции {station}: {error}"
         }
     },
     "services": {

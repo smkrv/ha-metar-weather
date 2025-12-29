@@ -79,6 +79,7 @@
         },
         "error": {
             "cannot_remove_last": "Die letzte Station kann nicht entfernt werden",
+            "station_exists": "Diese Station ist bereits in diesem Eintrag konfiguriert",
             "station_exists_other_entry": "Diese Station ist bereits in einem anderen Integrationseintrag konfiguriert"
         }
     },
@@ -94,6 +95,12 @@
         },
         "storage_not_initialized": {
             "message": "Speicher nicht initialisiert"
+        },
+        "clear_history_timeout": {
+            "message": "Zeitüberschreitung beim Löschen des Verlaufs für Station {station}"
+        },
+        "clear_history_failed": {
+            "message": "Löschen des Verlaufs für Station {station} fehlgeschlagen: {error}"
         }
     },
     "services": {

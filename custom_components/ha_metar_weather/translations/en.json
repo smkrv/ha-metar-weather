@@ -79,6 +79,7 @@
         },
         "error": {
             "cannot_remove_last": "Cannot remove the last station",
+            "station_exists": "This station is already configured in this entry",
             "station_exists_other_entry": "This station is already configured in another integration entry"
         }
     },
@@ -94,6 +95,12 @@
         },
         "storage_not_initialized": {
             "message": "Storage not initialized"
+        },
+        "clear_history_timeout": {
+            "message": "Timeout clearing history for station {station}"
+        },
+        "clear_history_failed": {
+            "message": "Failed to clear history for station {station}: {error}"
         }
     },
     "services": {
