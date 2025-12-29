@@ -17,7 +17,7 @@ Professional aviation weather monitoring for Home Assistant. Get real-time METAR
 > Always consult official aviation weather sources and certified flight planning tools for aviation activities.
 
 <div align="center">
-  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.png" alt="HA METAR Weather" width="400"/>
+  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.png" alt="HA METAR Weather" width="700"/>
 </div>
 
 ## Installation
