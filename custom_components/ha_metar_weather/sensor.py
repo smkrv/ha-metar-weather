@@ -434,8 +434,9 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             if hasattr(self.coordinator, 'client') and hasattr(self.coordinator.client, 'last_source'):
                 attrs["data_source"] = self.coordinator.client.last_source
 
-            if "station_name" in self.coordinator.data:
-                attrs[ATTR_STATION_NAME] = self.coordinator.data["station_name"]
+            station_name = self.coordinator.data.get("station_name")
+            if station_name is not None:
+                attrs[ATTR_STATION_NAME] = station_name
 
             if self.entity_description.key != "raw_metar":
                 attrs[ATTR_RAW_METAR] = self.coordinator.data.get("raw_metar")

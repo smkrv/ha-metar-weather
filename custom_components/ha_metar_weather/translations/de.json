@@ -25,6 +25,7 @@
             "invalid_icao": "Ungültiges ICAO-Code Format",
             "terms_not_accepted": "Sie müssen die Nutzungsbedingungen akzeptieren",
             "station_exists": "Diese Station ist bereits konfiguriert",
+            "station_exists_other_entry": "Diese Station ist bereits in einem anderen Integrationseintrag konfiguriert",
             "cannot_connect": "Verbindung zur Station fehlgeschlagen",
             "unknown": "Unerwarteter Fehler"
         }

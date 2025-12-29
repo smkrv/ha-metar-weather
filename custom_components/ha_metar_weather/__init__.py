@@ -201,9 +201,11 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from API with retry logic."""
         last_error = None
+        attempts_made = 0
 
         # Try fetching with exponential backoff
         for attempt, delay in enumerate(RETRY_INTERVALS):
+            attempts_made = attempt + 1
             try:
                 data = await self.client.fetch_data()
                 if data:
@@ -252,15 +254,16 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                 if attempt < len(RETRY_INTERVALS) - 1:
                     await asyncio.sleep(delay)
 
-        # All retries exhausted
+        # All retries exhausted or early break
         self._consecutive_failures += 1
         _LOGGER.error(
-            "All %d retry attempts failed for %s. Consecutive failures: %d",
-            len(RETRY_INTERVALS),
+            "Failed for %s after %d attempt(s). Consecutive failures: %d. Error: %s",
             self.station,
-            self._consecutive_failures
+            attempts_made,
+            self._consecutive_failures,
+            last_error
         )
-        raise UpdateFailed(f"Error fetching data after {len(RETRY_INTERVALS)} attempts: {last_error}") from last_error
+        raise UpdateFailed(f"Error fetching data after {attempts_made} attempt(s): {last_error}") from last_error
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
