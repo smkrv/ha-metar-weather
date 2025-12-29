@@ -8,11 +8,8 @@ Constants for the HA METAR Weather integration.
 
 from __future__ import annotations
 
-import os
-import json
-import logging
 from datetime import timedelta
-from typing import Dict, Final, Tuple, Any
+from typing import Dict, Final, Tuple
 
 from homeassistant.const import (
     UnitOfTemperature,
@@ -22,8 +19,6 @@ from homeassistant.const import (
     CONF_UNIT_SYSTEM_METRIC,
     CONF_UNIT_SYSTEM_IMPERIAL,
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 # Core constants
 DOMAIN: Final[str] = "ha_metar_weather"
@@ -42,15 +37,8 @@ CONF_ALTITUDE_UNIT: Final[str] = "altitude_unit"
 DEGREE: Final[str] = "°"
 PERCENTAGE: Final[str] = "%"
 
-# Version management
-MANIFEST_PATH: Final[str] = os.path.join(os.path.dirname(__file__), "manifest.json")
-try:
-    with open(MANIFEST_PATH) as manifest_file:
-        manifest = json.load(manifest_file)
-        VERSION: Final[str] = manifest.get("version", "unknown")
-except (FileNotFoundError, json.JSONDecodeError, Exception) as err:
-    VERSION = "unknown"
-    _LOGGER.error("Error reading manifest.json: %s", err)
+# Version - keep in sync with manifest.json
+VERSION: Final[str] = "2.2.0"
 
 # Default settings
 DEFAULT_NAME: Final[str] = "METAR Weather"
@@ -131,7 +119,7 @@ VALUE_RANGES: Final[Dict[str, Tuple[float, float]]] = {
     "dew_point": (-100.0, 60.0),      # °C
     "wind_speed": (0.0, 400.0),       # km/h
     "wind_gust": (0.0, 500.0),        # km/h
-    "visibility": (0.0, 20.0),        # km
+    "visibility": (0.0, 100.0),       # km (updated to allow real visibility values)
     "pressure": (900.0, 1100.0),      # hPa
     "humidity": (0.0, 100.0),         # %
     "cloud_coverage_height": (0.0, 50000.0)  # feet
@@ -274,7 +262,7 @@ AVAILABLE_PRESSURE_UNITS: Final[list[str]] = [
     UnitOfPressure.HPA,
     UnitOfPressure.INHG,
     UnitOfPressure.MMHG,
-    UnitOfPressure.MBAR,
+    # Note: MBAR is equivalent to HPA (1 mbar = 1 hPa)
 ]
 
 AVAILABLE_ALTITUDE_UNITS: Final[list[str]] = [

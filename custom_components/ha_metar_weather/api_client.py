@@ -12,7 +12,6 @@ Both sources use NOAA data, ensuring consistency and reliability.
 from __future__ import annotations
 
 import logging
-import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from enum import Enum
@@ -27,7 +26,6 @@ from homeassistant.exceptions import HomeAssistantError
 from .awc_client import AWCApiClient, AWCApiError
 from .metar_parser import MetarParser
 from .const import (
-    RETRY_INTERVALS,
     VALUE_RANGES,
     NUMERIC_PRECISION,
 )
@@ -124,8 +122,13 @@ class MetarApiClient:
         except Exception as err:
             _LOGGER.error("AVWX also failed for %s: %s", self.icao, err)
 
-        # Both sources failed
-        await self._handle_error()
+        # Both sources failed - let coordinator handle retry via its update interval
+        self._retry_count += 1
+        _LOGGER.error(
+            "All data sources failed for %s (attempt %d)",
+            self.icao,
+            self._retry_count
+        )
         return None
 
     async def _fetch_from_awc(self) -> Optional[Dict[str, Any]]:
@@ -215,26 +218,6 @@ class MetarApiClient:
             _LOGGER.error("Error validating data: %s", err)
             return data
 
-    async def _handle_error(self) -> None:
-        """Handle error with exponential backoff."""
-        if self._retry_count < len(RETRY_INTERVALS):
-            wait_time = RETRY_INTERVALS[self._retry_count]
-            self._retry_count += 1
-            _LOGGER.warning(
-                "Will retry fetching METAR for %s in %d minutes (attempt %d/%d)",
-                self.icao,
-                wait_time,
-                self._retry_count,
-                len(RETRY_INTERVALS)
-            )
-            await asyncio.sleep(wait_time * 60)
-        else:
-            _LOGGER.error(
-                "Maximum retry attempts reached for %s. Will try again in 1 hour",
-                self.icao
-            )
-            await asyncio.sleep(3600)
-            self._retry_count = 0
 
 
 async def validate_station(hass: HomeAssistant, icao: str) -> bool:

@@ -201,25 +201,24 @@ class AWCApiClient:
             visib = data.get("visib")
             if visib is not None:
                 if isinstance(visib, str):
-                    # Handle "6+", "10+", etc. - means excellent visibility
+                    # Handle "6+", "10+", etc. - means excellent visibility (10+ SM = 16+ km)
                     if "+" in visib:
-                        visibility = 10.0  # Cap at 10 km
+                        try:
+                            base_value = float(visib.replace("+", ""))
+                            visibility = round(base_value * 1.60934, 1)
+                        except ValueError:
+                            visibility = 16.0  # Default for "10+" etc.
                     else:
                         try:
                             # Convert statute miles to kilometers
                             visibility = round(float(visib) * 1.60934, 1)
-                            # Cap at 10 km for consistency
-                            if visibility > 10.0:
-                                visibility = 10.0
                         except ValueError:
                             visibility = None
                 else:
                     # Numeric value in statute miles
                     visibility = round(float(visib) * 1.60934, 1)
-                    if visibility > 10.0:
-                        visibility = 10.0
 
-            # Parse pressure (AWC API already returns in hPa/millibars)
+            # Parse pressure (AWC API returns altimeter already in hPa/millibars)
             pressure = None
             altim = data.get("altim")
             if altim is not None:
@@ -262,12 +261,13 @@ class AWCApiClient:
             else:
                 observation_time = datetime.now(timezone.utc)
 
-            # Determine CAVOK
+            # Determine CAVOK (Ceiling And Visibility OK - visibility >= 10 km)
             cavok = False
             raw_metar = data.get("rawOb", "")
             if "CAVOK" in raw_metar:
                 cavok = True
-                visibility = 10.0
+                if visibility is None:
+                    visibility = 10.0  # CAVOK means at least 10 km visibility
 
             # Parse weather string
             weather = data.get("wxString") or "Clear"
@@ -292,7 +292,7 @@ class AWCApiClient:
                 "cloud_coverage_height": cloud_layers[0]["height"] if cloud_layers else None,
                 "cloud_coverage_type": cloud_layers[0].get("type", "N/A") if cloud_layers else "N/A",
                 "cavok": cavok,
-                "auto": data.get("metarType") == "SPECI",
+                "auto": "AUTO" in raw_metar,
                 "trend": None,
                 "runway_states": {},
             }

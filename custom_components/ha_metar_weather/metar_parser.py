@@ -45,13 +45,14 @@ class RunwayState:
     surface: str
     coverage: str
     depth: int
-    friction: float
+    friction: Optional[float]
     raw: str
 
     def __str__(self) -> str:
         """Return string representation of runway state."""
+        friction_str = f"{self.friction}" if self.friction is not None else "N/A"
         return (f"Surface: {self.surface}, Coverage: {self.coverage}, "
-                f"Depth: {self.depth}mm, Friction: {self.friction}")
+                f"Depth: {self.depth}mm, Friction: {friction_str}")
 
 class MetarParser:
     """Parser for METAR data."""
@@ -117,20 +118,34 @@ class MetarParser:
                 if conditions.startswith('CLRD'):
                     # Special case for CLRD format (Clear and dry runway)
                     friction_code = conditions[4:6]
+                    # Handle "//" meaning not reported
+                    try:
+                        friction = int(friction_code) / 100
+                    except ValueError:
+                        friction = None  # "//" or other non-numeric means not reported
                     state = RunwayState(
                         surface="Clear and dry",
                         coverage="0%",
                         depth=0,
-                        friction=int(friction_code)/100,
+                        friction=friction,
                         raw=conditions
                     )
                 else:
                     # Standard 6-digit format
+                    # Handle "//" in friction code
+                    try:
+                        friction = int(conditions[4:6]) / 100
+                    except ValueError:
+                        friction = None  # Not reported
+                    try:
+                        depth = int(conditions[2:4])
+                    except ValueError:
+                        depth = 0  # Not reported
                     state = RunwayState(
                         surface=self.RUNWAY_SURFACE_CODES.get(conditions[0], "Unknown"),
                         coverage=self.RUNWAY_COVERAGE_CODES.get(conditions[1], "Unknown"),
-                        depth=int(conditions[2:4]),
-                        friction=int(conditions[4:6])/100,
+                        depth=depth,
+                        friction=friction,
                         raw=conditions
                     )
 
@@ -548,13 +563,13 @@ class MetarParser:
                             result["speed"]
                         )
 
-                # Parse variable wind direction
-                elif 'V' in part and len(part) == 7:  # format: 180V240
-                    match = re.match(r'(\d{3})V(\d{3})', part)
+                # Parse variable wind direction (format: 180V240 or 10V90)
+                elif 'V' in part and 5 <= len(part) <= 7:
+                    match = re.match(r'(\d{2,3})V(\d{2,3})', part)
                     if match:
                         start_dir = int(match.group(1))
                         end_dir = int(match.group(2))
-                        
+
                         # Validate directions
                         if 0 <= start_dir <= 360 and 0 <= end_dir <= 360:
                             result["variable"] = f"{start_dir:03d}°-{end_dir:03d}°"

@@ -126,46 +126,51 @@ class MetarHistoryStorage:
                 record_copy["timestamp"] = dt_util.utcnow().isoformat()
                 self._data[station].append(record_copy)
 
+                # Cleanup old data while holding the lock to prevent race conditions
+                self._cleanup_old_data_sync()
+
             except Exception as err:
                 _LOGGER.error("Error adding record: %s", err)
                 raise MetarStorageError(f"Failed to add record: {err}") from err
 
-        # Cleanup old data after adding new record
-        await self._async_cleanup_old_data()
         await self.async_save()
+
+    def _cleanup_old_data_sync(self) -> None:
+        """Remove data older than 24 hours (synchronous, must be called within lock)."""
+        now = dt_util.utcnow()
+        cutoff = now - timedelta(days=1)
+
+        for station in list(self._data.keys()):
+            try:
+                filtered_records = []
+                for record in self._data[station]:
+                    try:
+                        timestamp = record.get("timestamp")
+                        if not timestamp:
+                            continue
+                        dt = dt_util.parse_datetime(timestamp)
+                        if dt is None:
+                            continue
+                        dt = dt_util.as_utc(dt)
+                        if dt > cutoff:
+                            filtered_records.append(record)
+                    except (ValueError, KeyError) as err:
+                        _LOGGER.debug("Invalid record during cleanup: %s", err)
+                        continue
+
+                if filtered_records:
+                    self._data[station] = filtered_records
+                else:
+                    del self._data[station]
+
+            except Exception as err:
+                _LOGGER.error("Error cleaning up data for station %s: %s", station, err)
+                self._data[station] = []
 
     async def _async_cleanup_old_data(self) -> None:
         """Remove data older than 24 hours."""
         async with self._lock:
-            now = dt_util.utcnow()
-            cutoff = now - timedelta(days=1)
-
-            for station in list(self._data.keys()):
-                try:
-                    filtered_records = []
-                    for record in self._data[station]:
-                        try:
-                            timestamp = record.get("timestamp")
-                            if not timestamp:
-                                continue
-                            dt = dt_util.parse_datetime(timestamp)
-                            if dt is None:
-                                continue
-                            dt = dt_util.as_utc(dt)
-                            if dt > cutoff:
-                                filtered_records.append(record)
-                        except (ValueError, KeyError) as err:
-                            _LOGGER.debug("Invalid record during cleanup: %s", err)
-                            continue
-
-                    if filtered_records:
-                        self._data[station] = filtered_records
-                    else:
-                        del self._data[station]
-
-                except Exception as err:
-                    _LOGGER.error("Error cleaning up data for station %s: %s", station, err)
-                    self._data[station] = []
+            self._cleanup_old_data_sync()
 
     def get_station_history(self, station: str, key: str) -> List[Any]:
         """Get historical data for a specific key of a station."""

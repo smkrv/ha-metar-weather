@@ -23,10 +23,9 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPressure,
     UnitOfSpeed,
-    CONF_UNIT_SYSTEM_METRIC as HA_CONF_UNIT_SYSTEM_METRIC,
-    CONF_UNIT_SYSTEM_IMPERIAL as HA_CONF_UNIT_SYSTEM_IMPERIAL,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -66,7 +65,7 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class MetarSensorEntityDescription(SensorEntityDescription):
     """Class describing METAR sensor entities."""
-    value_fn: Callable[[dict], Optional[Union[str, float, int]]] = None
+    value_fn: Callable[[dict], Optional[Union[str, float, int]]] = lambda d: None
     has_history: bool = True
     trend_threshold: float = 0.1
 
@@ -165,7 +164,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_layers",
         name="Cloud Layers",
-        value_fn=lambda data: ", ".join(str(layer) for layer in data.get("cloud_layers", [])) or "Clear",
+        value_fn=lambda data: ", ".join(
+            f"{layer.get('coverage', '')} {layer.get('height', 'N/A')}ft"
+            for layer in data.get("cloud_layers", [])
+        ) or "Clear",
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -264,7 +266,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             "manufacturer": "NOAA / AWC",
             "model": "METAR Weather Station",
             "sw_version": VERSION,
-            "entry_type": "service",
+            "entry_type": DeviceEntryType.SERVICE,
         }
 
     async def async_added_to_hass(self) -> None:
@@ -481,18 +483,24 @@ async def async_setup_entry(
     entities: list[MetarSensor] = []
 
     for station in config_entry.data[CONF_STATIONS]:
-        coordinator = coordinators[station]
+        # Normalize station to uppercase to match coordinator keys
+        station_upper = station.upper()
+        coordinator = coordinators.get(station_upper)
 
-        if coordinator.data is None:
-            _LOGGER.warning("No data available for station %s", station)
+        if not coordinator:
+            _LOGGER.warning("Coordinator not found for station %s", station)
             continue
 
-        _LOGGER.debug("Setting up sensors for station %s", station)
+        if coordinator.data is None:
+            _LOGGER.warning("No data available for station %s", station_upper)
+            continue
+
+        _LOGGER.debug("Setting up sensors for station %s", station_upper)
 
         for description in SENSOR_TYPES:
             entities.append(MetarSensor(
                 coordinator=coordinator,
-                station=station,
+                station=station_upper,
                 description=description,
                 config_entry=config_entry,
             ))
@@ -501,11 +509,11 @@ async def async_setup_entry(
         runway_states = coordinator.data.get("runway_states", {})
         if runway_states:
             for runway in runway_states:
-                _LOGGER.debug("Creating runway sensor for runway %s at station %s", runway, station)
+                _LOGGER.debug("Creating runway sensor for runway %s at station %s", runway, station_upper)
                 entities.append(
                     MetarSensor(
                         coordinator=coordinator,
-                        station=station,
+                        station=station_upper,
                         description=MetarSensorEntityDescription(
                             key=f"runway_{runway}",
                             name=f"Runway {runway} State",
