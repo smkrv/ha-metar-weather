@@ -12,7 +12,7 @@ Professional aviation weather monitoring for Home Assistant. Get real-time METAR
 
 > **IMPORTANT NOTICE**
 > 
-> **⚠️ This integration is <u>NOT</u> certified for aviation navigation or flight planning!**
+> ⚠️ **This integration is _<ins>NOT</ins>_ certified for aviation navigation or flight planning!**
 > METAR data provided is for informational purposes only.
 > Always consult official aviation weather sources and certified flight planning tools for aviation activities.
 
