@@ -12,6 +12,7 @@ API Documentation: https://aviationweather.gov/data/api/
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -134,6 +135,10 @@ class AWCApiClient:
         except aiohttp.ClientError as err:
             _LOGGER.error("AWC API connection error: %s", err)
             raise AWCApiError(f"Connection error: {err}") from err
+
+        except json.JSONDecodeError as err:
+            _LOGGER.error("AWC API returned invalid JSON: %s", err)
+            raise AWCApiError(f"Invalid JSON response: {err}") from err
 
         except (TimeoutError, asyncio.TimeoutError) as err:
             _LOGGER.error("AWC API timeout")

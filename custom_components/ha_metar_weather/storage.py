@@ -227,7 +227,13 @@ class MetarHistoryStorage:
     def get_station_history(self, station: str, key: str) -> list[Any]:
         """Synchronous version - gets snapshot of current data.
 
-        Note: For thread-safe access, prefer async_get_station_history.
+        WARNING: This method is not fully thread-safe. The slice operation
+        creates a shallow copy but is not atomic. For guaranteed thread-safe
+        access in async context, prefer async_get_station_history().
+
+        This method is intended for use in synchronous property getters
+        where async is not available (e.g., extra_state_attributes).
+
         Returns copies of values to prevent external modifications.
         For primitive types (int, float, str, bool, None), returns values directly.
         For complex types (list, dict), returns deep copies.
@@ -354,8 +360,19 @@ class MetarHistoryStorage:
     async def async_cleanup(self) -> None:
         """Public cleanup method for graceful shutdown.
 
-        Cancels pending debouncer saves to prevent writes after unload.
+        Performs final save and cancels pending debouncer to prevent writes after unload.
         """
         if self._debouncer:
+            # Cancel pending debounced calls first
             self._debouncer.async_cancel()
-            _LOGGER.debug("Storage debouncer cancelled")
+
+            # Perform final save to ensure no data loss
+            try:
+                await self._async_save_data()
+                _LOGGER.debug("Storage final save completed on cleanup")
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:
+                _LOGGER.warning("Failed to save data on cleanup: %s", err)
+
+            _LOGGER.debug("Storage cleanup completed")

@@ -267,6 +267,22 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA METAR Weather from a config entry."""
+    # Ensure storage is initialized (handles reload case where async_setup isn't called again)
+    if "storage" not in hass.data.get(DOMAIN, {}):
+        _LOGGER.debug("Storage not found, initializing (possible reload scenario)")
+        hass.data.setdefault(DOMAIN, {})
+        try:
+            async with async_timeout(30):
+                storage = MetarHistoryStorage(hass)
+                await storage.async_load()
+                hass.data[DOMAIN]["storage"] = storage
+                _LOGGER.debug("Storage initialized in async_setup_entry")
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:
+            _LOGGER.error("Failed to initialize storage in setup_entry: %s", err)
+            # Continue without storage - sensors will work but no history
+
     # Validate stations list exists and is not empty
     stations = entry.data.get(CONF_STATIONS, [])
     if not stations:

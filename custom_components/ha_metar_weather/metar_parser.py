@@ -127,6 +127,10 @@ class MetarParser:
                 # Vertical Visibility (VV): used for fog/obscuration (e.g., VV002 = 200ft, VV/// = undefined)
                 elif part.startswith('VV'):
                     height_str = part[2:5] if len(part) >= 5 else part[2:]
+                    # Skip malformed VV data (e.g., just "VV" with no value)
+                    if not height_str:
+                        _LOGGER.debug("Skipping malformed VV data: %s", part)
+                        continue
                     if height_str == '///':
                         # VV/// means vertical visibility cannot be determined
                         layer = CloudLayer(
@@ -506,9 +510,11 @@ class MetarParser:
         # Fallback to ICAO code from raw METAR if name not available
         if not station_name and self.raw_metar:
             # First 4 characters of METAR are the ICAO code
-            icao = self.raw_metar.split()[0] if self.raw_metar.split() else None
-            if icao and len(icao) == 4 and icao.isalnum():
-                station_name = icao
+            parts = self.raw_metar.split()
+            if parts:
+                icao = parts[0]
+                if len(icao) == 4 and icao.isalnum():
+                    station_name = icao
 
         data = {
             "raw_metar": self.raw_metar,
