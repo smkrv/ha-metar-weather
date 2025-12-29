@@ -22,6 +22,7 @@ from homeassistant.core import (
 )
 from homeassistant.const import Platform
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
@@ -49,6 +50,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

@@ -163,8 +163,8 @@
             "wind_variable_direction": {
                 "name": "Wind Variable Direction",
                 "state_attributes": {
-                    "from_direction": "From Direction",
-                    "to_direction": "To Direction"
+                    "from_direction": { "name": "From Direction" },
+                    "to_direction": { "name": "To Direction" }
                 }
             },
             "visibility": {
