@@ -10,9 +10,9 @@
 
 Professional aviation weather monitoring for Home Assistant. Get real-time METAR data from over 9,000 airport weather stations worldwide with automatic trend analysis and historical tracking.
 
-> **IMPORTANT NOTICE**
+> **⚠️ IMPORTANT NOTICE**
 > 
-> **This integration is NOT certified for aviation navigation or flight planning!**
+> **⚠️ This integration is NOT certified for aviation navigation or flight planning!**
 > METAR data provided is for informational purposes only.
 > Always consult official aviation weather sources and certified flight planning tools for aviation activities.
 
