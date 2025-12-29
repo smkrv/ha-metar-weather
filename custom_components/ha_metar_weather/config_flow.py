@@ -22,6 +22,12 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    SelectOptionDict,
+)
 
 from .api_client import MetarApiClientError, InvalidStationError, validate_station
 from .const import (
@@ -65,17 +71,27 @@ def _build_unit_options(
     units: list[str],
     include_auto: bool = True,
     include_native: bool = True
-) -> dict:
-    """Build unit selector options with display names."""
-    options = {}
+) -> list[SelectOptionDict]:
+    """Build unit selector options with display names for dropdown."""
+    options: list[SelectOptionDict] = []
     if include_auto:
-        options[UNIT_AUTO] = "Auto (Home Assistant)"
+        options.append(SelectOptionDict(value=UNIT_AUTO, label="Auto (Home Assistant)"))
     if include_native:
-        options[UNIT_NATIVE] = "Native (METAR)"
+        options.append(SelectOptionDict(value=UNIT_NATIVE, label="Native (METAR)"))
     for unit in units:
         display = UNIT_FORMATS.get(unit, unit)
-        options[unit] = display
+        options.append(SelectOptionDict(value=unit, label=display))
     return options
+
+
+def _build_unit_selector(options: list[SelectOptionDict]) -> SelectSelector:
+    """Build a dropdown selector for unit options."""
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=options,
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
 
 
 class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -193,7 +209,7 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
                 data=self._user_input,
             )
 
-        # Build unit selection schema
+        # Build unit selection schema with dropdown selectors
         temp_options = _build_unit_options(AVAILABLE_TEMP_UNITS)
         wind_options = _build_unit_options(AVAILABLE_WIND_SPEED_UNITS)
         visibility_options = _build_unit_options(AVAILABLE_VISIBILITY_UNITS)
@@ -206,23 +222,23 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_TEMP_UNIT,
                     default=UNIT_AUTO
-                ): vol.In(temp_options),
+                ): _build_unit_selector(temp_options),
                 vol.Required(
                     CONF_WIND_SPEED_UNIT,
                     default=DEFAULT_WIND_SPEED_UNIT
-                ): vol.In(wind_options),
+                ): _build_unit_selector(wind_options),
                 vol.Required(
                     CONF_VISIBILITY_UNIT,
                     default=UNIT_AUTO
-                ): vol.In(visibility_options),
+                ): _build_unit_selector(visibility_options),
                 vol.Required(
                     CONF_PRESSURE_UNIT,
                     default=UNIT_AUTO
-                ): vol.In(pressure_options),
+                ): _build_unit_selector(pressure_options),
                 vol.Required(
                     CONF_ALTITUDE_UNIT,
                     default=DEFAULT_ALTITUDE_UNIT
-                ): vol.In(altitude_options),
+                ): _build_unit_selector(altitude_options),
             }),
         )
 
@@ -293,7 +309,7 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
         current_press = self._entry.data.get(CONF_PRESSURE_UNIT, UNIT_AUTO)
         current_alt = self._entry.data.get(CONF_ALTITUDE_UNIT, DEFAULT_ALTITUDE_UNIT)
 
-        # Build unit selection schema
+        # Build unit selection schema with dropdown selectors
         temp_options = _build_unit_options(AVAILABLE_TEMP_UNITS)
         wind_options = _build_unit_options(AVAILABLE_WIND_SPEED_UNITS)
         visibility_options = _build_unit_options(AVAILABLE_VISIBILITY_UNITS)
@@ -306,23 +322,23 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_TEMP_UNIT,
                     default=current_temp
-                ): vol.In(temp_options),
+                ): _build_unit_selector(temp_options),
                 vol.Required(
                     CONF_WIND_SPEED_UNIT,
                     default=current_wind
-                ): vol.In(wind_options),
+                ): _build_unit_selector(wind_options),
                 vol.Required(
                     CONF_VISIBILITY_UNIT,
                     default=current_vis
-                ): vol.In(visibility_options),
+                ): _build_unit_selector(visibility_options),
                 vol.Required(
                     CONF_PRESSURE_UNIT,
                     default=current_press
-                ): vol.In(pressure_options),
+                ): _build_unit_selector(pressure_options),
                 vol.Required(
                     CONF_ALTITUDE_UNIT,
                     default=current_alt
-                ): vol.In(altitude_options),
+                ): _build_unit_selector(altitude_options),
             }),
         )
 
