@@ -163,8 +163,8 @@
             "wind_variable_direction": {
                 "name": "Variable Windrichtung",
                 "state_attributes": {
-                    "from_direction": "Von Richtung",
-                    "to_direction": "Bis Richtung"
+                    "from_direction": { "name": "Von Richtung" },
+                    "to_direction": { "name": "Bis Richtung" }
                 }
             },
             "visibility": {
@@ -248,90 +248,6 @@
             "remarks": {
                 "name": "Bemerkungen"
             }
-        }
-    },
-    "state_attributes": {
-        "last_update": "Letzte Aktualisierung",
-        "station": "Station",
-        "station_name": "Stationsname",
-        "raw_metar": "Roh-METAR",
-        "min_24h": "24h Minimum",
-        "max_24h": "24h Maximum",
-        "average_24h": "24h Durchschnitt",
-        "trend": "Trend",
-        "wind_gust": "Windböen",
-        "wind_variable_direction": "Variable Windrichtung",
-        "wind_variation_from": "Windvariation von",
-        "wind_variation_to": "Windvariation bis"
-    },
-    "weather": {
-        "intensity": {
-            "light": "Schwach",
-            "heavy": "Stark",
-            "vicinity": "In der Nähe"
-        },
-        "descriptor": {
-            "shallow": "Oberflächlich",
-            "partial": "Teilweise",
-            "patches": "Stellenweise",
-            "low_drifting": "Niedriges Treiben",
-            "blowing": "Verwehend",
-            "showers": "Schauer",
-            "thunderstorm": "Gewitter",
-            "freezing": "Gefrierend"
-        },
-        "phenomenon": {
-            "drizzle": "Nieselregen",
-            "rain": "Regen",
-            "snow": "Schnee",
-            "snow_grains": "Schneekörner",
-            "ice_crystals": "Eiskristalle",
-            "ice_pellets": "Eiskügelchen",
-            "hail": "Hagel",
-            "small_hail": "Kleinhagel",
-            "unknown": "Unbekannter Niederschlag",
-            "mist": "Dunst",
-            "fog": "Nebel",
-            "smoke": "Rauch",
-            "volcanic_ash": "Vulkanasche",
-            "dust": "Weitverbreiteter Staub",
-            "sand": "Sand",
-            "haze": "Trübung",
-            "spray": "Gischt",
-            "dust_whirls": "Staub-/Sandwirbel",
-            "squalls": "Böen",
-            "funnel_cloud": "Trichterwolke",
-            "sandstorm": "Sandsturm",
-            "duststorm": "Staubsturm"
-        }
-    },
-    "cloud_coverage": {
-        "clear_sky": "Klarer Himmel",
-        "clear": "Klar",
-        "no_significant": "Keine bedeutenden Wolken",
-        "few": "Wenige Wolken (1-2 Achtel)",
-        "scattered": "Aufgelockerte Bewölkung (3-4 Achtel)",
-        "broken": "Bedeckt mit Lücken (5-7 Achtel)",
-        "overcast": "Bedeckt (8 Achtel)",
-        "vertical_visibility": "Vertikale Sicht"
-    },
-    "runway": {
-        "condition": {
-            "contamination": "Verunreinigung",
-            "coverage": "Bedeckung",
-            "depth": "Tiefe",
-            "friction": "Reibung",
-            "braking": "Bremswirkung"
-        }
-    },
-    "wind": {
-        "variable_direction": {
-            "from": "Von",
-            "to": "Bis",
-            "varying_between": "Variierend zwischen"
-        },
-        "gust": {
-            "up_to": "Bis zu"
         }
     }
 }

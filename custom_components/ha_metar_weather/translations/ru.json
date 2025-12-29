@@ -163,8 +163,8 @@
             "wind_variable_direction": {
                 "name": "Переменное направление ветра",
                 "state_attributes": {
-                    "from_direction": "От направления",
-                    "to_direction": "До направления"
+                    "from_direction": { "name": "От направления" },
+                    "to_direction": { "name": "До направления" }
                 }
             },
             "visibility": {
@@ -248,90 +248,6 @@
             "remarks": {
                 "name": "Примечания"
             }
-        }
-    },
-    "state_attributes": {
-        "last_update": "Последнее обновление",
-        "station": "Станция",
-        "station_name": "Название станции",
-        "raw_metar": "Исходная METAR",
-        "min_24h": "Минимум за 24ч",
-        "max_24h": "Максимум за 24ч",
-        "average_24h": "Среднее за 24ч",
-        "trend": "Тенденция",
-        "wind_gust": "Порывы ветра",
-        "wind_variable_direction": "Переменное направление ветра",
-        "wind_variation_from": "Вариация ветра от",
-        "wind_variation_to": "Вариация ветра до"
-    },
-    "weather": {
-        "intensity": {
-            "light": "Слабый",
-            "heavy": "Сильный",
-            "vicinity": "В районе"
-        },
-        "descriptor": {
-            "shallow": "Поверхностный",
-            "partial": "Частичный",
-            "patches": "Местами",
-            "low_drifting": "Низовая метель",
-            "blowing": "Позёмок",
-            "showers": "Ливни",
-            "thunderstorm": "Гроза",
-            "freezing": "Замерзающий"
-        },
-        "phenomenon": {
-            "drizzle": "Морось",
-            "rain": "Дождь",
-            "snow": "Снег",
-            "snow_grains": "Снежная крупа",
-            "ice_crystals": "Ледяные кристаллы",
-            "ice_pellets": "Ледяные гранулы",
-            "hail": "Град",
-            "small_hail": "Мелкий град",
-            "unknown": "Неизвестные осадки",
-            "mist": "Дымка",
-            "fog": "Туман",
-            "smoke": "Дым",
-            "volcanic_ash": "Вулканический пепел",
-            "dust": "Пыль повсеместно",
-            "sand": "Песок",
-            "haze": "Мгла",
-            "spray": "Брызги",
-            "dust_whirls": "Пыльные/песчаные вихри",
-            "squalls": "Шквалы",
-            "funnel_cloud": "Воронкообразное облако",
-            "sandstorm": "Песчаная буря",
-            "duststorm": "Пыльная буря"
-        }
-    },
-    "cloud_coverage": {
-        "clear_sky": "Ясное небо",
-        "clear": "Ясно",
-        "no_significant": "Нет значимых облаков",
-        "few": "Малооблачно (1-2 окта)",
-        "scattered": "Рассеянная облачность (3-4 окта)",
-        "broken": "Переменная облачность (5-7 окт)",
-        "overcast": "Сплошная облачность (8 окт)",
-        "vertical_visibility": "Вертикальная видимость"
-    },
-    "runway": {
-        "condition": {
-            "contamination": "Загрязнение",
-            "coverage": "Покрытие",
-            "depth": "Глубина",
-            "friction": "Сцепление",
-            "braking": "Торможение"
-        }
-    },
-    "wind": {
-        "variable_direction": {
-            "from": "От",
-            "to": "До",
-            "varying_between": "Изменяется между"
-        },
-        "gust": {
-            "up_to": "До"
         }
     }
 }
