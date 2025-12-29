@@ -35,7 +35,8 @@
                 "title": "Настройки METAR",
                 "menu_options": {
                     "units": "Настройка единиц измерения",
-                    "stations": "Управление станциями"
+                    "stations": "Управление станциями",
+                    "station_remove": "Удалить станцию"
                 }
             },
             "units": {
@@ -66,7 +67,32 @@
                 "data": {
                     "add_another": "Добавить ещё станцию"
                 }
+            },
+            "station_remove": {
+                "title": "Удалить станцию",
+                "description": "Выберите станцию для удаления. Примечание: Должна остаться хотя бы одна станция.",
+                "data": {
+                    "station": "Станция для удаления"
+                }
             }
+        },
+        "error": {
+            "cannot_remove_last": "Невозможно удалить последнюю станцию",
+            "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции"
+        }
+    },
+    "exceptions": {
+        "invalid_icao_format": {
+            "message": "Неверный формат ICAO кода: {station}"
+        },
+        "station_not_found": {
+            "message": "Станция {station} не найдена ни в одной конфигурации"
+        },
+        "station_not_configured": {
+            "message": "Станция {station} не настроена"
+        },
+        "storage_not_initialized": {
+            "message": "Хранилище не инициализировано"
         }
     },
     "services": {

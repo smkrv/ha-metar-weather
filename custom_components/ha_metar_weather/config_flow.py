@@ -23,7 +23,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .api_client import MetarApiClient, MetarApiClientError, validate_station
+from .api_client import MetarApiClientError, InvalidStationError, validate_station
 from .const import (
     DOMAIN,
     CONF_ICAO,
@@ -106,9 +106,11 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
             if not is_valid:
                 raise CannotConnect
             return True
+        except InvalidStationError as err:
+            # Specialized exception from api_client - station code is invalid
+            raise InvalidStation from err
         except MetarApiClientError as err:
-            if "invalid station" in str(err).lower():
-                raise InvalidStation from err
+            # General API error - connection issue
             raise CannotConnect from err
 
     async def async_step_user(
@@ -132,6 +134,10 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_ICAO] = "invalid_icao"
             else:
                 user_input[CONF_ICAO] = user_input[CONF_ICAO].upper()
+
+                # Check if already configured BEFORE making API call
+                await self.async_set_unique_id(user_input[CONF_ICAO])
+                self._abort_if_unique_id_configured()
 
                 try:
                     await self._validate_station(user_input[CONF_ICAO])
@@ -174,9 +180,7 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
             # Merge unit settings with stored user input
             self._user_input.update(user_input)
 
-            await self.async_set_unique_id(self._user_input[CONF_ICAO])
-            self._abort_if_unique_id_configured()
-
+            # unique_id was already set in async_step_user
             return self.async_create_entry(
                 title=f"METAR {self._user_input[CONF_ICAO]}",
                 data=self._user_input,
@@ -242,9 +246,14 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
         Returns:
             FlowResult: Options flow result
         """
+        menu_options = ["units", "stations"]
+        # Only show remove option if there are multiple stations
+        if len(self._stations) > 1:
+            menu_options.append("station_remove")
+
         return self.async_show_menu(
             step_id="init",
-            menu_options=["units", "stations"],
+            menu_options=menu_options,
         )
 
     async def async_step_units(
@@ -355,6 +364,14 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
             elif station in self._new_stations:
                 errors[CONF_ICAO] = "station_exists"
             else:
+                # Check if station exists in any OTHER config entry (prevent duplicates)
+                for entry in self.hass.config_entries.async_entries(DOMAIN):
+                    if entry.entry_id != self._entry.entry_id:
+                        if station in entry.data.get(CONF_STATIONS, []):
+                            errors[CONF_ICAO] = "station_exists_other_entry"
+                            break
+
+            if not errors:
                 try:
                     is_valid = await validate_station(self.hass, station)
                     if not is_valid:
@@ -365,6 +382,8 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
 
                 except CannotConnect:
                     errors["base"] = "cannot_connect"
+                except InvalidStation:
+                    errors[CONF_ICAO] = "invalid_icao"
                 except Exception as err:  # pylint: disable=broad-except
                     _LOGGER.exception("Unexpected exception: %s", err)
                     errors["base"] = "unknown"
@@ -407,4 +426,50 @@ class HaMetarWeatherOptionsFlow(OptionsFlow):
             data_schema=vol.Schema({
                 vol.Optional("add_another", default=False): bool,
             }),
+        )
+
+    async def async_step_station_remove(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        """
+        Handle removing a station.
+
+        Args:
+            user_input: User provided station selection
+
+        Returns:
+            FlowResult: Flow result for station removal
+        """
+        # Refresh from current entry data to avoid stale data issues
+        self._new_stations = list(self._entry.data.get(CONF_STATIONS, []))
+
+        errors: Dict[str, str] = {}
+
+        if user_input is not None:
+            station_to_remove = user_input.get("station")
+            if station_to_remove and station_to_remove in self._new_stations:
+                # Prevent removing the last station
+                if len(self._new_stations) <= 1:
+                    errors["base"] = "cannot_remove_last"
+                else:
+                    self._new_stations.remove(station_to_remove)
+
+                    new_data = dict(self._entry.data)
+                    new_data[CONF_STATIONS] = self._new_stations
+
+                    self.hass.config_entries.async_update_entry(
+                        self._entry, data=new_data
+                    )
+
+                    return self.async_create_entry(title="", data={})
+
+        # Build station selection options
+        station_options = {station: station for station in self._new_stations}
+
+        return self.async_show_form(
+            step_id="station_remove",
+            data_schema=vol.Schema({
+                vol.Required("station"): vol.In(station_options),
+            }),
+            errors=errors,
         )

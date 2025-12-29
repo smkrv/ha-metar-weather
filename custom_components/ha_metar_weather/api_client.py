@@ -11,12 +11,21 @@ Both sources use NOAA data, ensuring consistency and reliability.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from enum import Enum
 
 import avwx
+
+# Compatibility for Python < 3.11
+if sys.version_info >= (3, 11):
+    from asyncio import timeout as async_timeout
+else:
+    from async_timeout import timeout as async_timeout
 from avwx.exceptions import BadStation, SourceError
 
 from homeassistant.core import HomeAssistant
@@ -28,6 +37,7 @@ from .metar_parser import MetarParser
 from .const import (
     VALUE_RANGES,
     NUMERIC_PRECISION,
+    AVWX_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,6 +51,14 @@ class DataSource(Enum):
 
 class MetarApiClientError(HomeAssistantError):
     """Exception for API client errors."""
+
+
+class InvalidStationError(MetarApiClientError):
+    """Exception for invalid station code."""
+
+
+class ConnectionFailedError(MetarApiClientError):
+    """Exception for connection failures."""
 
 
 class MetarApiClient:
@@ -60,12 +78,12 @@ class MetarApiClient:
         self.hass = hass
         self.icao = icao.upper()
         self.session = async_get_clientsession(hass)
-        self._retry_count = 0
         self._last_source: Optional[DataSource] = None
 
         # Initialize clients
         self._awc_client = AWCApiClient(hass)
         self._avwx_metar: Optional[avwx.Metar] = None
+        self._avwx_init_lock = asyncio.Lock()
 
     @property
     def last_source(self) -> Optional[str]:
@@ -74,19 +92,21 @@ class MetarApiClient:
 
     async def _init_avwx(self) -> None:
         """Initialize AVWX client (fallback source)."""
-        if self._avwx_metar is not None:
-            return
+        # Use lock to prevent race condition on parallel calls
+        async with self._avwx_init_lock:
+            if self._avwx_metar is not None:
+                return
 
-        def _setup():
-            try:
-                metar = avwx.Metar(self.icao)
-                return metar
-            except Exception as err:
-                _LOGGER.error("Error creating AVWX instance for %s: %s", self.icao, err)
-                raise MetarApiClientError(f"Failed to create AVWX instance: {err}")
+            def _setup():
+                try:
+                    metar = avwx.Metar(self.icao)
+                    return metar
+                except Exception as err:
+                    _LOGGER.error("Error creating AVWX instance for %s: %s", self.icao, err)
+                    raise MetarApiClientError(f"Failed to create AVWX instance: {err}")
 
-        self._avwx_metar = await self.hass.async_add_executor_job(_setup)
-        _LOGGER.debug("AVWX client initialized for station %s", self.icao)
+            self._avwx_metar = await self.hass.async_add_executor_job(_setup)
+            _LOGGER.debug("AVWX client initialized for station %s", self.icao)
 
     async def fetch_data(self) -> Optional[Dict[str, Any]]:
         """Fetch METAR data using multi-source strategy.
@@ -100,7 +120,6 @@ class MetarApiClient:
         try:
             data = await self._fetch_from_awc()
             if data:
-                self._retry_count = 0
                 self._last_source = DataSource.AWC
                 _LOGGER.debug("Successfully fetched data from AWC API for %s", self.icao)
                 return data
@@ -110,25 +129,31 @@ class MetarApiClient:
                 self.icao,
                 err
             )
+        except asyncio.CancelledError:
+            raise  # Don't suppress cancellation
+        except Exception as err:
+            _LOGGER.warning(
+                "Unexpected AWC error for %s: %s, falling back to AVWX",
+                self.icao,
+                err
+            )
 
         # Fallback to AVWX (NOAA FTP)
         try:
             data = await self._fetch_from_avwx()
             if data:
-                self._retry_count = 0
                 self._last_source = DataSource.AVWX
                 _LOGGER.debug("Successfully fetched data from AVWX for %s", self.icao)
                 return data
+        except (MetarApiClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("AVWX failed for %s: %s", self.icao, err)
+        except asyncio.CancelledError:
+            raise  # Don't suppress cancellation
         except Exception as err:
-            _LOGGER.error("AVWX also failed for %s: %s", self.icao, err)
+            _LOGGER.error("Unexpected AVWX error for %s: %s", self.icao, err)
 
         # Both sources failed - let coordinator handle retry via its update interval
-        self._retry_count += 1
-        _LOGGER.error(
-            "All data sources failed for %s (attempt %d)",
-            self.icao,
-            self._retry_count
-        )
+        _LOGGER.error("All data sources failed for %s", self.icao)
         return None
 
     async def _fetch_from_awc(self) -> Optional[Dict[str, Any]]:
@@ -153,7 +178,9 @@ class MetarApiClient:
         await self._init_avwx()
 
         try:
-            await self.hass.async_add_executor_job(self._avwx_metar.update)
+            # Add timeout to prevent hanging on slow NOAA FTP
+            async with async_timeout(AVWX_TIMEOUT):
+                await self.hass.async_add_executor_job(self._avwx_metar.update)
             _LOGGER.debug(
                 "Raw METAR from AVWX for %s: %s",
                 self.icao,
@@ -163,30 +190,47 @@ class MetarApiClient:
             if not self._avwx_metar.data:
                 raise MetarApiClientError("No data received from AVWX")
 
+            # Also verify raw METAR exists (needed for proper parsing)
+            if not self._avwx_metar.raw:
+                raise MetarApiClientError("No raw METAR string from AVWX")
+
             # Parse using our MetarParser
             parser = MetarParser(self._avwx_metar.data)
             parsed_data = parser.get_parsed_data()
 
             # Add observation time
+            # AVWX returns Timestamp object with .dt attribute, not datetime directly
             time_data = getattr(self._avwx_metar.data, 'time', None)
-            if isinstance(time_data, datetime):
+            if time_data is not None and hasattr(time_data, 'dt') and time_data.dt:
+                observation_time = time_data.dt
+            elif isinstance(time_data, datetime):
                 observation_time = time_data
             else:
                 observation_time = datetime.now(timezone.utc)
 
-            parsed_data["observation_time"] = observation_time.replace(
-                tzinfo=timezone.utc
-            ).isoformat()
+            # Ensure proper timezone conversion (not just replacement)
+            if observation_time.tzinfo is None:
+                # Naive datetime - assume UTC
+                observation_time = observation_time.replace(tzinfo=timezone.utc)
+            else:
+                # Aware datetime - convert to UTC
+                observation_time = observation_time.astimezone(timezone.utc)
+
+            parsed_data["observation_time"] = observation_time.isoformat()
 
             return self._validate_and_round(parsed_data)
 
         except BadStation as err:
             _LOGGER.error("Invalid station code %s: %s", self.icao, err)
-            raise MetarApiClientError(f"Invalid station: {err}") from err
+            raise InvalidStationError(f"Invalid station: {err}") from err
 
         except SourceError as err:
             _LOGGER.error("AVWX source error for %s: %s", self.icao, err)
             raise MetarApiClientError(f"Source error: {err}") from err
+
+        except asyncio.TimeoutError as err:
+            _LOGGER.error("AVWX update timed out for %s (%ds)", self.icao, AVWX_TIMEOUT)
+            raise MetarApiClientError("AVWX timeout") from err
 
     def _validate_and_round(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate ranges and round numeric values.
@@ -195,10 +239,12 @@ class MetarApiClient:
             data: Parsed METAR data
 
         Returns:
-            Validated and rounded data
+            Validated and rounded data (new dict, input not mutated)
         """
         try:
-            for key, value in data.items():
+            # Create a deep copy to avoid mutating input (including nested objects)
+            result = deepcopy(data)
+            for key, value in result.items():
                 if key in VALUE_RANGES and value is not None:
                     min_val, max_val = VALUE_RANGES[key]
                     try:
@@ -208,15 +254,15 @@ class MetarApiClient:
                                 "Value %s for %s outside range (%s-%s)",
                                 value, key, min_val, max_val
                             )
-                            data[key] = None
+                            result[key] = None
                         elif key in NUMERIC_PRECISION:
-                            data[key] = round(float_val, NUMERIC_PRECISION[key])
+                            result[key] = round(float_val, NUMERIC_PRECISION[key])
                     except (ValueError, TypeError):
                         pass
-            return data
+            return result
         except Exception as err:
             _LOGGER.error("Error validating data: %s", err)
-            return data
+            return deepcopy(data)
 
 
 

@@ -8,7 +8,10 @@ Constants for the HA METAR Weather integration.
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
+from enum import StrEnum
+from pathlib import Path
 from typing import Dict, Final, Tuple
 
 from homeassistant.const import (
@@ -19,6 +22,17 @@ from homeassistant.const import (
     CONF_UNIT_SYSTEM_METRIC,
     CONF_UNIT_SYSTEM_IMPERIAL,
 )
+
+
+class TrendState(StrEnum):
+    """Enumeration for trend states."""
+
+    STABLE = "stable"
+    RISING = "rising"
+    FALLING = "falling"
+    # Wind direction specific trends
+    VEERING = "veering"  # clockwise shift
+    BACKING = "backing"  # counter-clockwise shift
 
 # Core constants
 DOMAIN: Final[str] = "ha_metar_weather"
@@ -37,22 +51,46 @@ CONF_ALTITUDE_UNIT: Final[str] = "altitude_unit"
 DEGREE: Final[str] = "°"
 PERCENTAGE: Final[str] = "%"
 
-# Version - keep in sync with manifest.json
-VERSION: Final[str] = "2.2.0"
+# Version - read from manifest.json to avoid duplication
+def _get_version() -> str:
+    """Read version from manifest.json."""
+    try:
+        manifest_path = Path(__file__).parent / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        return manifest.get("version", "0.0.0")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "0.0.0"
+
+VERSION: Final[str] = _get_version()
 
 # Default settings
 DEFAULT_NAME: Final[str] = "METAR Weather"
 DEFAULT_SCAN_INTERVAL: Final[timedelta] = timedelta(minutes=30)
-RANDOM_MINUTES_MIN: Final[int] = 5
-RANDOM_MINUTES_MAX: Final[int] = 10
 
 # Storage settings
 STORAGE_KEY: Final[str] = f"{DOMAIN}.history"
+
+# Unit conversion factors
+KNOTS_TO_KMH: Final[float] = 1.852
+MPS_TO_KMH: Final[float] = 3.6
+MILES_TO_KM: Final[float] = 1.60934
+INHG_TO_HPA: Final[float] = 33.8639
+FEET_TO_METERS: Final[float] = 0.3048
+
+# Visibility constants
+# Default value for excellent visibility (10+ SM, P6SM, etc.)
+DEFAULT_EXCELLENT_VISIBILITY_KM: Final[float] = 16.0
 STORAGE_VERSION: Final[int] = 1
-MAX_RECORDS_PER_STATION = 200
+MAX_RECORDS_PER_STATION: Final[int] = 200
+MAX_HISTORY_DISPLAY: Final[int] = 24  # Number of historical records to show in attributes
 
 # Error handling
 RETRY_INTERVALS: Final[tuple[int, ...]] = (2, 5, 10, 30)
+
+# API configuration
+AWC_API_BASE_URL: Final[str] = "https://aviationweather.gov/api/data/metar"
+AWC_API_TIMEOUT: Final[int] = 30  # seconds
+AVWX_TIMEOUT: Final[int] = 30  # seconds
 
 # Validation
 ICAO_REGEX: Final[str] = r"^[A-Z0-9]{4}$"
@@ -114,11 +152,12 @@ NUMERIC_PRECISION: Final[Dict[str, int]] = {
 }
 
 # Valid value ranges for measurements
+# Note: wind_speed matches parser's 200 kt limit, wind_gust matches 300 kt limit
 VALUE_RANGES: Final[Dict[str, Tuple[float, float]]] = {
     "temperature": (-100.0, 60.0),    # °C
     "dew_point": (-100.0, 60.0),      # °C
-    "wind_speed": (0.0, 400.0),       # km/h
-    "wind_gust": (0.0, 500.0),        # km/h
+    "wind_speed": (0.0, 370.0),       # km/h (200 kt max from parser)
+    "wind_gust": (0.0, 556.0),        # km/h (300 kt max from parser)
     "visibility": (0.0, 100.0),       # km (updated to allow real visibility values)
     "pressure": (900.0, 1100.0),      # hPa
     "humidity": (0.0, 100.0),         # %
@@ -176,6 +215,8 @@ CLOUD_COVERAGE: Final[Dict[str, str]] = {
     "SKC": "Clear sky",
     "CLR": "No clouds below 12,000ft",
     "NSC": "No significant clouds",
+    "NCD": "No clouds detected",
+    "CAVOK": "Ceiling and visibility OK",
     "FEW": "Few (1-2 oktas)",
     "SCT": "Scattered (3-4 oktas)",
     "BKN": "Broken (5-7 oktas)",
@@ -214,10 +255,16 @@ RUNWAY_SURFACE_CODES: Final[Dict[str, str]] = {
 }
 
 RUNWAY_COVERAGE_CODES: Final[Dict[str, str]] = {
+    "0": "Clear and dry (0%)",
     "1": "Less than 10%",
     "2": "11-25%",
-    "5": "26-50%",
-    "9": "51-100%",
+    "3": "26-50%",
+    "4": "51-75%",
+    "5": "26-50%",  # Alternative code used in some regions
+    "6": "51-75%",  # Alternative code used in some regions
+    "7": "76-90%",
+    "8": "91-100%",
+    "9": "51-100%",  # Generic 51%+ coverage
     "/": "Not reported"
 }
 

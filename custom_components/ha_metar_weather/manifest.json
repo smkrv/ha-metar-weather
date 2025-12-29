@@ -12,7 +12,6 @@
   "quality_scale": "silver",
   "requirements": [
     "avwx-engine>=1.7.2",
-    "aiofiles>=0.8.0",
     "aiohttp>=3.8.0",
     "certifi>=2024.2.2"
   ],

@@ -51,16 +51,48 @@ from .const import (
     PERCENTAGE,
     VERSION,
     FIXED_UNITS,
-    UNIT_MAPPINGS,
     UNIT_AUTO,
     DEFAULT_TEMP_UNIT,
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_VISIBILITY_UNIT,
     DEFAULT_PRESSURE_UNIT,
     DEFAULT_ALTITUDE_UNIT,
+    TrendState,
+    MAX_HISTORY_DISPLAY,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _format_runway_state(state: Optional[dict]) -> Optional[str]:
+    """Format runway state dictionary into a human-readable string."""
+    if not state or not isinstance(state, dict):
+        return None
+
+    parts = []
+
+    # Surface type (key is "surface" in RunwayState dataclass)
+    surface = state.get("surface")
+    if surface:
+        parts.append(surface)
+
+    # Coverage
+    coverage = state.get("coverage")
+    if coverage:
+        parts.append(f"coverage: {coverage}")
+
+    # Depth (can be 0 for dry runway, so use "is not None")
+    depth = state.get("depth")
+    if depth is not None:
+        parts.append(f"depth: {depth}")
+
+    # Friction
+    friction = state.get("friction")
+    if friction is not None:
+        parts.append(f"friction: {friction}")
+
+    return ", ".join(parts) if parts else "Clear"
+
 
 @dataclass
 class MetarSensorEntityDescription(SensorEntityDescription):
@@ -108,6 +140,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("wind_gust"),
         icon="mdi:weather-windy-variant",
+        trend_threshold=2.0,  # 2 km/h threshold for gusts (more sensitive than wind_speed)
     ),
     MetarSensorEntityDescription(
         key="wind_variable_direction",
@@ -120,6 +153,8 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         name="Wind Direction",
         native_unit_of_measurement=DEGREE,
         state_class=SensorStateClass.MEASUREMENT,
+        # For VRB wind, return None (sensor will be unavailable)
+        # The separate wind_variable_direction sensor shows "VRB" status
         value_fn=lambda data: data.get("wind_direction"),
         icon="mdi:compass",
         trend_threshold=45,
@@ -152,7 +187,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("humidity"),
         icon="mdi:water-percent",
-        trend_threshold=5,
+        trend_threshold=5,  # 5% absolute change threshold
     ),
     MetarSensorEntityDescription(
         key="weather",
@@ -166,7 +201,8 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         name="Cloud Layers",
         value_fn=lambda data: ", ".join(
             f"{layer.get('coverage', '')} {layer.get('height', 'N/A')}ft"
-            for layer in data.get("cloud_layers", [])
+            for layer in (data.get("cloud_layers") or [])
+            if isinstance(layer, dict) and layer.get('coverage')
         ) or "Clear",
         icon="mdi:cloud",
         has_history=False,
@@ -220,10 +256,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         key="runway_states",
         name="All Runways State",
         value_fn=lambda data: "\n".join(
-            f"Runway {rwy}: {details['surface']}, "
-            f"Coverage: {details['coverage']}, "
-            f"Depth: {details['depth']}, "
-            f"Friction: {details['friction']}"
+            f"Runway {rwy}: {details.get('surface', 'N/A')}, "
+            f"Coverage: {details.get('coverage', 'N/A')}, "
+            f"Depth: {details.get('depth', 'N/A')}, "
+            f"Friction: {details.get('friction', 'N/A')}"
             for rwy, details in data.get("runway_states", {}).items()
         ) or "No Runway Data",
         icon="mdi:runway",
@@ -306,12 +342,16 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         return configured
 
     def _update_units(self) -> None:
-        """Update units based on configuration preferences."""
+        """Update suggested display units based on configuration preferences.
+
+        Note: native_unit_of_measurement stays as defined in SENSOR_TYPES
+        (the actual unit of stored data). suggested_unit_of_measurement
+        tells Home Assistant what unit to convert to for display.
+        """
         key = self.entity_description.key
 
         # Skip update for sensors with fixed units
         if key in FIXED_UNITS:
-            self._attr_native_unit_of_measurement = FIXED_UNITS[key]
             return
 
         # Map sensor keys to unit configuration keys
@@ -338,7 +378,11 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         if key in unit_key_mapping:
             unit_key = unit_key_mapping[key]
             default = default_mapping[key]
-            self._attr_native_unit_of_measurement = self._get_configured_unit(unit_key, default)
+            suggested_unit = self._get_configured_unit(unit_key, default)
+            # Only set suggested unit if it differs from native unit
+            # Home Assistant will handle the conversion automatically
+            if suggested_unit != self.entity_description.native_unit_of_measurement:
+                self._attr_suggested_unit_of_measurement = suggested_unit
 
     @property
     def native_value(self) -> Optional[Union[str, float, int]]:
@@ -396,24 +440,25 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             if self.entity_description.key != "raw_metar":
                 attrs[ATTR_RAW_METAR] = self.coordinator.data.get("raw_metar")
 
-            if self.entity_description.has_history and "storage" in self.hass.data[DOMAIN]:
+            if self.entity_description.has_history and self.hass.data.get(DOMAIN, {}).get("storage"):
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station, self.entity_description.key)
                 if history:
-                    attrs[ATTR_HISTORICAL_DATA] = history[-24:]  # last 24 records
+                    attrs[ATTR_HISTORICAL_DATA] = history[-MAX_HISTORY_DISPLAY:]
 
                     if self.entity_description.state_class == SensorStateClass.MEASUREMENT:
                         try:
                             # history is a list of values, not dicts
                             values = []
-                            for item in history[-24:]:
+                            for item in history[-MAX_HISTORY_DISPLAY:]:
                                 if isinstance(item, (int, float)):
                                     values.append(float(item))
                                 elif isinstance(item, str):
                                     # Try to parse string as number
-                                    cleaned = item.replace(".", "", 1).replace("-", "", 1)
-                                    if cleaned.isdigit():
+                                    try:
                                         values.append(float(item))
+                                    except ValueError:
+                                        continue  # Skip non-numeric strings
 
                             if values:
                                 attrs["min_24h"] = min(values)
@@ -431,44 +476,68 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         return attrs
 
     def _calculate_trend(self, values: list[float]) -> str:
-        """Calculate trend based on historical values."""
+        """Calculate trend based on historical values.
+
+        For wind direction, uses circular difference (359° → 1° = 2° change).
+        For other values, uses absolute change.
+
+        Returns:
+            TrendState value as string
+        """
         if len(values) < 2:
-            return "stable"
+            return TrendState.STABLE
 
         try:
             last_value = float(values[-1])
             prev_value = float(values[-2])
-
-            if abs(last_value) < 0.0001 or abs(prev_value) < 0.0001:
-                return "stable"
-
-            change = ((last_value - prev_value) / abs(prev_value)) * 100
             threshold = self.entity_description.trend_threshold
 
+            # Special handling for wind direction (circular)
+            if self.entity_description.key == "wind_direction":
+                # Calculate circular difference
+                diff = last_value - prev_value
+                # Normalize to -180 to 180
+                if diff > 180:
+                    diff -= 360
+                elif diff < -180:
+                    diff += 360
+
+                if abs(diff) < threshold:
+                    return TrendState.STABLE
+                # For wind direction: positive = clockwise (veering), negative = counter-clockwise (backing)
+                return TrendState.VEERING if diff > 0 else TrendState.BACKING
+
+            # Absolute change (for temp, pressure, humidity, visibility, wind_speed, etc.)
+            change = last_value - prev_value
             if abs(change) < threshold:
-                return "stable"
-            return "rising" if change > 0 else "falling"
+                return TrendState.STABLE
+            return TrendState.RISING if change > 0 else TrendState.FALLING
 
         except (ValueError, TypeError, ZeroDivisionError):
-            return "stable"
+            return TrendState.STABLE
 
 
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        # For wind_direction, None is a valid value when wind is VRB (variable)
-        # So we need to check if the key exists in data, not if the value is not None
         if not self.coordinator.last_update_success or self.coordinator.data is None:
             return False
 
         key = self.entity_description.key
 
-        # For sensors where None is a valid state (like wind_direction with VRB wind)
-        # check if the key exists in data rather than checking value
-        if key in ("wind_direction", "wind_gust", "wind_variable_direction"):
-            # These sensors are available if coordinator has data
-            # wind_direction can be None for VRB, wind_gust can be None if no gusts
-            return True
+        # wind_direction: available only if we have a numeric direction
+        # For VRB wind, direction is None - sensor will be unavailable
+        # The separate wind_variable_direction sensor shows "VRB" status
+        if key == "wind_direction":
+            return self.coordinator.data.get("wind_direction") is not None
+
+        # wind_gust: only available if there's actually a gust value
+        if key == "wind_gust":
+            return self.coordinator.data.get("wind_gust") is not None
+
+        # wind_variable_direction: only available if there's variable direction
+        if key == "wind_variable_direction":
+            return self.coordinator.data.get("wind_variable_direction") is not None
 
         return self.native_value is not None
 
@@ -491,9 +560,13 @@ async def async_setup_entry(
             _LOGGER.warning("Coordinator not found for station %s", station)
             continue
 
+        # Create sensors even without initial data - they will be "unavailable"
+        # until data arrives, rather than never being created
         if coordinator.data is None:
-            _LOGGER.warning("No data available for station %s", station_upper)
-            continue
+            _LOGGER.info(
+                "No initial data for station %s, sensors will be unavailable until data arrives",
+                station_upper
+            )
 
         _LOGGER.debug("Setting up sensors for station %s", station_upper)
 
@@ -505,24 +578,27 @@ async def async_setup_entry(
                 config_entry=config_entry,
             ))
 
-        # Setup individual runway sensors
-        runway_states = coordinator.data.get("runway_states", {})
-        if runway_states:
-            for runway in runway_states:
-                _LOGGER.debug("Creating runway sensor for runway %s at station %s", runway, station_upper)
-                entities.append(
-                    MetarSensor(
-                        coordinator=coordinator,
-                        station=station_upper,
-                        description=MetarSensorEntityDescription(
-                            key=f"runway_{runway}",
-                            name=f"Runway {runway} State",
-                            value_fn=lambda data, r=runway: data.get("runway_states", {}).get(r),
-                            icon="mdi:runway",
-                            has_history=False,
-                        ),
-                        config_entry=config_entry,
+        # Setup individual runway sensors (only if we have data with runways)
+        if coordinator.data:
+            runway_states = coordinator.data.get("runway_states", {})
+            if runway_states:
+                for runway in runway_states:
+                    _LOGGER.debug("Creating runway sensor for runway %s at station %s", runway, station_upper)
+                    entities.append(
+                        MetarSensor(
+                            coordinator=coordinator,
+                            station=station_upper,
+                            description=MetarSensorEntityDescription(
+                                key=f"runway_{runway}",
+                                name=f"Runway {runway} State",
+                                value_fn=lambda data, r=runway: _format_runway_state(
+                                    data.get("runway_states", {}).get(r)
+                                ),
+                                icon="mdi:runway",
+                                has_history=False,
+                            ),
+                            config_entry=config_entry,
+                        )
                     )
-                )
 
     async_add_entities(entities)

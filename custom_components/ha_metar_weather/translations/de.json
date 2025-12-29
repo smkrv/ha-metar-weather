@@ -35,7 +35,8 @@
                 "title": "METAR Einstellungen",
                 "menu_options": {
                     "units": "Einheiten konfigurieren",
-                    "stations": "Stationen verwalten"
+                    "stations": "Stationen verwalten",
+                    "station_remove": "Station entfernen"
                 }
             },
             "units": {
@@ -66,7 +67,32 @@
                 "data": {
                     "add_another": "Weitere Station hinzufügen"
                 }
+            },
+            "station_remove": {
+                "title": "Station entfernen",
+                "description": "Wählen Sie eine Station zum Entfernen. Hinweis: Mindestens eine Station muss verbleiben.",
+                "data": {
+                    "station": "Zu entfernende Station"
+                }
             }
+        },
+        "error": {
+            "cannot_remove_last": "Die letzte Station kann nicht entfernt werden",
+            "station_exists_other_entry": "Diese Station ist bereits in einem anderen Integrationseintrag konfiguriert"
+        }
+    },
+    "exceptions": {
+        "invalid_icao_format": {
+            "message": "Ungültiges ICAO-Code Format: {station}"
+        },
+        "station_not_found": {
+            "message": "Station {station} in keinem Konfigurationseintrag gefunden"
+        },
+        "station_not_configured": {
+            "message": "Station {station} ist nicht konfiguriert"
+        },
+        "storage_not_initialized": {
+            "message": "Speicher nicht initialisiert"
         }
     },
     "services": {

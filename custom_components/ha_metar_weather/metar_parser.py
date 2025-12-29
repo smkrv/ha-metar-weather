@@ -19,7 +19,12 @@ from .const import (
     WEATHER_PHENOMENA,
     RUNWAY_SURFACE_CODES,
     RUNWAY_COVERAGE_CODES,
+    KNOTS_TO_KMH,
+    MPS_TO_KMH,
+    INHG_TO_HPA,
+    MILES_TO_KM,
 )
+from .utils import calculate_humidity, parse_runway_states_from_raw
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,15 +72,28 @@ class MetarParser:
         """Initialize parser with METAR data."""
         self.metar = metar_data
         self.raw_metar = getattr(metar_data, 'raw', '')
-        _LOGGER.debug("Initializing METAR parser with data: %s", self.raw_metar)
+        # Caches for expensive parsing operations
+        self._cloud_layers_cache: Optional[List[CloudLayer]] = None
+        self._runway_states_cache: Optional[Dict[str, RunwayState]] = None
+        if not self.raw_metar:
+            _LOGGER.warning("Empty raw METAR string received, parsing may be incomplete")
+        else:
+            _LOGGER.debug("Initializing METAR parser with data: %s", self.raw_metar)
 
     def parse_cloud_layers(self) -> List[CloudLayer]:
-        """Parse cloud information from METAR."""
+        """Parse cloud information from METAR.
+
+        Results are cached to avoid repeated parsing.
+        """
+        if self._cloud_layers_cache is not None:
+            return self._cloud_layers_cache
+
         layers = []
         try:
             # Search for string parts containing cloud information
             parts = self.raw_metar.split()
             for part in parts:
+                # Standard cloud layers: FEW, SCT, BKN, OVC
                 if any(part.startswith(prefix) for prefix in ['FEW', 'SCT', 'BKN', 'OVC']):
                     coverage_code = part[:3]
                     coverage = self.CLOUD_COVERAGE.get(coverage_code, coverage_code)
@@ -99,64 +117,68 @@ class MetarParser:
                     layers.append(layer)
                     _LOGGER.debug("Parsed cloud layer: %s at %s feet", coverage, height)
 
+                # Clear sky indicators: SKC, CLR, NSC, NCD, CAVOK
+                elif part in ['SKC', 'CLR', 'NSC', 'NCD', 'CAVOK']:
+                    coverage = self.CLOUD_COVERAGE.get(part, part)
+                    layer = CloudLayer(coverage=coverage, height=None, type=None)
+                    layers.append(layer)
+                    _LOGGER.debug("Parsed clear sky indicator: %s", part)
+
+                # Vertical Visibility (VV): used for fog/obscuration (e.g., VV002 = 200ft, VV/// = undefined)
+                elif part.startswith('VV'):
+                    height_str = part[2:5] if len(part) >= 5 else part[2:]
+                    if height_str == '///':
+                        # VV/// means vertical visibility cannot be determined
+                        layer = CloudLayer(
+                            coverage="Vertical Visibility",
+                            height=None,
+                            type="Obscured (undefined)"
+                        )
+                        layers.append(layer)
+                        _LOGGER.debug("Parsed vertical visibility: undefined (VV///)")
+                    elif height_str.isdigit():
+                        height = int(height_str) * 100  # VV002 = 200 feet
+                        layer = CloudLayer(
+                            coverage="Vertical Visibility",
+                            height=height,
+                            type="Obscured"
+                        )
+                        layers.append(layer)
+                        _LOGGER.debug("Parsed vertical visibility: %s feet", height)
+
+            self._cloud_layers_cache = layers
             return layers
         except Exception as err:
             _LOGGER.error("Error parsing cloud layers: %s", err)
             return []
 
     def parse_runway_states(self) -> Dict[str, RunwayState]:
-        """Parse runway states from METAR."""
-        runway_states = {}
+        """Parse runway states from METAR.
 
-        try:
-            # Handle both standard format (R24L/123456) and special formats (R24L/CLRD62)
-            matches = re.finditer(r'R(\d{2}[LCR]?)/([A-Z]{4}\d{2}|\d{6})', self.raw_metar)
-            for match in matches:
-                runway = match.group(1)
-                conditions = match.group(2)
+        Uses shared utility function from utils.py for consistency with AWC client.
+        Results are cached to avoid repeated parsing.
 
-                if conditions.startswith('CLRD'):
-                    # Special case for CLRD format (Clear and dry runway)
-                    friction_code = conditions[4:6]
-                    # Handle "//" meaning not reported
-                    try:
-                        friction = int(friction_code) / 100
-                    except ValueError:
-                        friction = None  # "//" or other non-numeric means not reported
-                    state = RunwayState(
-                        surface="Clear and dry",
-                        coverage="0%",
-                        depth=0,
-                        friction=friction,
-                        raw=conditions
-                    )
-                else:
-                    # Standard 6-digit format
-                    # Handle "//" in friction code
-                    try:
-                        friction = int(conditions[4:6]) / 100
-                    except ValueError:
-                        friction = None  # Not reported
-                    try:
-                        depth = int(conditions[2:4])
-                    except ValueError:
-                        depth = 0  # Not reported
-                    state = RunwayState(
-                        surface=self.RUNWAY_SURFACE_CODES.get(conditions[0], "Unknown"),
-                        coverage=self.RUNWAY_COVERAGE_CODES.get(conditions[1], "Unknown"),
-                        depth=depth,
-                        friction=friction,
-                        raw=conditions
-                    )
+        Handles multiple formats:
+        - Standard: R24L/123456 (surface/coverage/depth/friction)
+        - CLRD: R24L/CLRD62 or R24L/CLRD// (cleared runway)
+        - SNOCLO: R24/SNOCLO (runway closed due to snow)
+        """
+        if self._runway_states_cache is not None:
+            return self._runway_states_cache
 
-                runway_states[runway] = state
-                _LOGGER.debug("Parsed runway state for %s: %s", runway, state)
-
-            return runway_states
-
-        except Exception as err:
-            _LOGGER.error("Error parsing runway states: %s", err)
-            return {}
+        # Use shared parsing function and convert to RunwayState dataclasses
+        raw_states = parse_runway_states_from_raw(self.raw_metar)
+        self._runway_states_cache = {
+            runway: RunwayState(
+                surface=state["surface"],
+                coverage=state["coverage"],
+                depth=state["depth"],
+                friction=state["friction"],
+                raw=state["raw"]
+            )
+            for runway, state in raw_states.items()
+        }
+        return self._runway_states_cache
 
     def parse_weather(self) -> str:
         """Parse weather conditions."""
@@ -168,41 +190,74 @@ class MetarParser:
             parts = self.raw_metar.split()
 
             # Complex weather phenomena can consist of multiple parts
-            for part in parts:
+            for original_part in parts:
+                # Stop processing at RMK (remarks section)
+                if original_part == 'RMK':
+                    break
+
                 # Skip known non-weather codes
-                if (part.endswith('KT') or part.endswith('MPS') or
-                    '/' in part or part.startswith('Q') or
-                    part.startswith('R') or part.isdigit() or
-                    part in ['NOSIG', 'CAVOK']):
+                # Note: Runway conditions (R24L/550362) are skipped by '/' check
+                # DO NOT skip 'R' prefix - it would exclude RA (rain), RADZ, etc.
+                if (original_part.endswith('KT') or original_part.endswith('MPS') or
+                    '/' in original_part or original_part.startswith('Q') or
+                    original_part.isdigit() or
+                    original_part in ['NOSIG', 'CAVOK']):
+                    continue
+
+                # Skip altimeter settings (A followed by 4 digits, e.g., A3012)
+                if (original_part.startswith('A') and len(original_part) == 5 and
+                    original_part[1:].isdigit()):
+                    continue
+
+                # Skip trend indicators and other non-weather markers
+                if original_part in ['TEMPO', 'BECMG', 'FM', 'TL', 'AT', 'PROB30', 'PROB40',
+                                     'SKC', 'CLR', 'NSC', 'NCD', 'AUTO', 'COR']:
                     continue
 
                 weather = ''
                 intensity = ''
                 descriptor = ''
 
+                # Use working copy to avoid modifying loop variable
+                current_part = original_part
+
                 # Check intensity
-                if part.startswith(('-', '+')):
-                    intensity = self.WEATHER_PHENOMENA.get(part[0], '')
-                    part = part[1:]
-                elif part.startswith('VC'):
+                if current_part.startswith(('-', '+')):
+                    intensity = self.WEATHER_PHENOMENA.get(current_part[0], '')
+                    current_part = current_part[1:]
+                elif current_part.startswith('VC'):
                     intensity = self.WEATHER_PHENOMENA['VC']
-                    part = part[2:]
+                    current_part = current_part[2:]
 
-                # Check descriptors (2 letters)
-                if len(part) >= 2:
-                    desc = part[:2]
-                    if desc in self.WEATHER_PHENOMENA:
-                        descriptor = self.WEATHER_PHENOMENA[desc]
-                        part = part[2:]
+                # Known descriptors (only these can be descriptors, not precipitation/obscuration)
+                DESCRIPTORS = {'MI', 'PR', 'BC', 'DR', 'BL', 'SH', 'TS', 'FZ'}
 
-                # Check main phenomenon
-                if part in self.WEATHER_PHENOMENA:
-                    weather = self.WEATHER_PHENOMENA[part]
+                # Parse all 2-letter groups in the weather code
+                phenomena_parts = []
+                remaining = current_part
+
+                while len(remaining) >= 2:
+                    code = remaining[:2]
+                    if code in DESCRIPTORS:
+                        # It's a descriptor
+                        descriptor = self.WEATHER_PHENOMENA.get(code, code)
+                        remaining = remaining[2:]
+                    elif code in self.WEATHER_PHENOMENA:
+                        # It's a precipitation/obscuration/other phenomenon
+                        phenomena_parts.append(self.WEATHER_PHENOMENA[code])
+                        remaining = remaining[2:]
+                    else:
+                        # Unknown code, skip
+                        break
+
+                # Combine descriptor with phenomena
+                if phenomena_parts:
+                    weather = ' '.join(phenomena_parts)
 
                 # Assemble full weather description
-                if any([intensity, descriptor, weather]):
+                if intensity or descriptor or weather:
                     full_weather = ' '.join(filter(None, [intensity, descriptor, weather]))
-                    if full_weather:
+                    if full_weather and full_weather not in weather_codes:
                         weather_codes.append(full_weather)
 
             # Handle special cases
@@ -341,14 +396,28 @@ class MetarParser:
                     wind_index = i
                     break
 
-            # Look for visibility after wind part
+            # If no wind found, start searching from position 2 (after station code and time)
+            # METAR format: ICAO TIME [WIND] VISIBILITY ...
+            if wind_index < 0:
+                wind_index = 1  # Skip station code, assume visibility starts after position 1
+                _LOGGER.debug("No wind found in METAR, starting visibility search from position 2")
+
+            # Look for visibility after wind part (visibility comes within first 2-3 parts after wind)
             if wind_index >= 0:
-                for i, part in enumerate(raw_parts[wind_index + 1:], start=wind_index + 1):
+                # Limit search to prevent matching unrelated 4-digit numbers later in METAR
+                max_visibility_search = min(wind_index + 4, len(raw_parts))
+
+                for idx, part in enumerate(raw_parts[wind_index + 1:max_visibility_search]):
                     # Skip variable wind direction (e.g., 180V240)
                     if re.match(r'^\d{3}V\d{3}$', part):
                         continue
 
+                    # Skip runway conditions (e.g., R24L/..., R09/...)
+                    if part.startswith('R') and '/' in part:
+                        continue
+
                     # Check for 4-digit visibility in meters (e.g., 9999, 7000, 0800)
+                    # Valid visibility range: 0000-9999 meters
                     if re.match(r'^\d{4}$', part):
                         vis_meters = int(part)
                         if vis_meters == 9999:
@@ -369,31 +438,90 @@ class MetarParser:
                         _LOGGER.debug("Parsed NDV visibility: %s meters = %s km", vis_meters, visibility)
                         break
 
+                    # Check for visibility with direction (e.g., 3000NE, 1500S, 0800SW)
+                    dir_match = re.match(r'^(\d{4})([NSEW]{1,2})$', part)
+                    if dir_match:
+                        vis_meters = int(dir_match.group(1))
+                        direction = dir_match.group(2)
+                        if vis_meters == 9999:
+                            visibility = 10.0
+                        else:
+                            visibility = vis_meters / 1000
+                        _LOGGER.debug("Parsed directional visibility: %s meters %s = %s km",
+                                    vis_meters, direction, visibility)
+                        break
+
+                    # Check for SM (statute miles) format - US METAR (e.g., 10SM, 3SM, P6SM)
+                    sm_match = re.match(r'^P?(\d+)SM$', part)
+                    if sm_match:
+                        vis_miles = float(sm_match.group(1))
+                        visibility = round(vis_miles * MILES_TO_KM, 1)
+                        _LOGGER.debug("Parsed SM visibility: %s SM = %s km", vis_miles, visibility)
+                        break
+
+                    # Check for fractional SM format (e.g., 1/2SM, 1/4SM, 3/4SM)
+                    # Also handles mixed fractions where previous part is whole number
+                    frac_sm_match = re.match(r'^(\d+)/(\d+)SM$', part)
+                    if frac_sm_match:
+                        numerator = float(frac_sm_match.group(1))
+                        denominator = float(frac_sm_match.group(2))
+                        if denominator > 0:
+                            vis_miles = numerator / denominator
+
+                            # Check if previous part was a whole number (mixed fraction like "1 1/2SM")
+                            # idx from enumerate is safe, unlike .index() which could raise ValueError
+                            if idx > 0:
+                                prev_part = raw_parts[wind_index + 1 + idx - 1]
+                                # Previous part must be a standalone single digit (1-9)
+                                # Not a runway code, wind, or other METAR element
+                                if (prev_part.isdigit() and
+                                    len(prev_part) <= 2 and
+                                    not prev_part.startswith('R')):
+                                    vis_miles += float(prev_part)
+                                    _LOGGER.debug("Parsed mixed fractional SM visibility: %s %s/%s SM = %s km",
+                                                prev_part, int(numerator), int(denominator), vis_miles)
+
+                            visibility = round(vis_miles * MILES_TO_KM, 1)
+                            if vis_miles == numerator / denominator:
+                                _LOGGER.debug("Parsed fractional SM visibility: %s/%s SM = %s km",
+                                            int(numerator), int(denominator), visibility)
+                        break
+
                     # Stop at cloud, temperature, or pressure parts
                     if (part.startswith(('FEW', 'SCT', 'BKN', 'OVC', 'SKC', 'CLR', 'NSC', 'VV')) or
                         '/' in part or part.startswith('Q') or part.startswith('A')):
                         break
 
-        # Parse weather phenomena (excluding TEMPO)
-        weather_conditions = []
-        tempo_index = len(raw_parts)
-        if 'TEMPO' in raw_parts:
-            tempo_index = raw_parts.index('TEMPO')
+        # Parse weather phenomena using the proper method that handles intensity
+        weather_description = self.parse_weather()
 
-        for part in raw_parts[:tempo_index]:
-            if part in self.WEATHER_PHENOMENA:
-                weather_conditions.append(self.WEATHER_PHENOMENA[part])
-            elif part.startswith('+') or part.startswith('-'):
-                if part[1:] in self.WEATHER_PHENOMENA:
-                    weather_conditions.append(self.WEATHER_PHENOMENA[part[1:]])
+        # Try to get station name from AVWX data
+        # AVWX may provide station info via .station attribute or .station_info
+        station_name = None
+        if hasattr(self.metar, 'station') and self.metar.station:
+            station_name = getattr(self.metar.station, 'name', None)
+        if not station_name and hasattr(self.metar, 'station_info'):
+            station_name = getattr(self.metar.station_info, 'name', None)
+
+        # Fallback to ICAO code from raw METAR if name not available
+        if not station_name and self.raw_metar:
+            # First 4 characters of METAR are the ICAO code
+            icao = self.raw_metar.split()[0] if self.raw_metar.split() else None
+            if icao and len(icao) == 4 and icao.isalnum():
+                station_name = icao
 
         data = {
             "raw_metar": self.raw_metar,
-            "cloud_layers": cloud_layers,
+            "station_name": station_name,  # May be None for AVWX fallback
+            # Convert CloudLayer objects to dicts for consistency with AWC client
+            "cloud_layers": [
+                {"coverage": l.coverage, "height": l.height, "type": l.type}
+                for l in cloud_layers
+            ],
             "cloud_coverage_state": self.parse_cloud_coverage(),
             "cloud_coverage_height": self.parse_cloud_height(),
             "cloud_coverage_type": self.parse_cloud_type(),
-            "weather": ", ".join(weather_conditions) if weather_conditions else "Clear",
+            "weather": weather_description,
             "trend": self.parse_trend(),
             "runway_states": {rwy: state.__dict__ for rwy, state in self.parse_runway_states().items()},
             "temperature": temp,
@@ -406,20 +534,12 @@ class MetarParser:
             "visibility": visibility,
             "pressure": pressure,
             "cavok": cavok,
-            "auto": getattr(self.metar, 'auto', False),
+            # Parse AUTO from raw METAR (AVWX doesn't have .auto attribute)
+            "auto": "AUTO" in self.raw_metar,
         }
 
         _LOGGER.debug("Parsed METAR data: %s", data)
         return data
-
-    def _validate_wind_speed(self, speed: Optional[float]) -> Optional[float]:
-        """Validate wind speed value."""
-        if speed is None:
-            return None
-        if speed < 0 or speed > 400:
-            _LOGGER.warning("Invalid wind speed value: %s km/h", speed)
-            return None
-        return speed
 
     def _parse_wind(self, raw_parts: List[str]) -> Dict[str, Optional[Union[float, str]]]:
         """Parse wind information from METAR."""
@@ -445,7 +565,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_kt <= 200:  # reasonable maximum for knots
-                            result["speed"] = round(speed_kt * 1.852, 1)
+                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
                             continue
@@ -453,7 +573,7 @@ class MetarParser:
                         if vrb_match.group(2):
                             gust_kt = int(vrb_match.group(2))
                             if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
-                                result["gust"] = round(gust_kt * 1.852, 1)
+                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
 
@@ -470,6 +590,13 @@ class MetarParser:
                         direction = int(match.group(1))
                         speed_kt = int(match.group(2))
 
+                        # Handle calm wind (00000KT) - direction has no meaning
+                        if speed_kt == 0 and direction == 0:
+                            result["direction"] = None
+                            result["speed"] = 0.0
+                            _LOGGER.debug("Parsed calm wind: 00000KT")
+                            continue
+
                         # Validate wind direction
                         if 0 <= direction <= 360:
                             result["direction"] = float(direction)
@@ -479,7 +606,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_kt <= 200:  # reasonable maximum for knots
-                            result["speed"] = round(speed_kt * 1.852, 1)
+                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
                             continue
@@ -487,7 +614,7 @@ class MetarParser:
                         if match.group(3):
                             gust_kt = int(match.group(3))
                             if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
-                                result["gust"] = round(gust_kt * 1.852, 1)
+                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
 
@@ -510,7 +637,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
-                            result["speed"] = round(speed_ms * 3.6, 1)
+                            result["speed"] = round(speed_ms * MPS_TO_KMH, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
                             continue
@@ -518,7 +645,7 @@ class MetarParser:
                         if vrb_match.group(2):
                             gust_ms = int(vrb_match.group(2))
                             if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
-                                result["gust"] = round(gust_ms * 3.6, 1)
+                                result["gust"] = round(gust_ms * MPS_TO_KMH, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
 
@@ -535,6 +662,13 @@ class MetarParser:
                         direction = int(match.group(1))
                         speed_ms = int(match.group(2))
 
+                        # Handle calm wind (00000MPS) - direction has no meaning
+                        if speed_ms == 0 and direction == 0:
+                            result["direction"] = None
+                            result["speed"] = 0.0
+                            _LOGGER.debug("Parsed calm wind: 00000MPS")
+                            continue
+
                         # Validate wind direction
                         if 0 <= direction <= 360:
                             result["direction"] = float(direction)
@@ -544,7 +678,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
-                            result["speed"] = round(speed_ms * 3.6, 1)
+                            result["speed"] = round(speed_ms * MPS_TO_KMH, 1)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
                             continue
@@ -552,7 +686,7 @@ class MetarParser:
                         if match.group(3):
                             gust_ms = int(match.group(3))
                             if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
-                                result["gust"] = round(gust_ms * 3.6, 1)
+                                result["gust"] = round(gust_ms * MPS_TO_KMH, 1)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
 
@@ -643,8 +777,8 @@ class MetarParser:
             if part.startswith('A') and len(part) == 5:
                 try:
                     inhg = float(part[1:]) / 100  # A3012 -> 30.12
-                    # Convert inHg to hPa (1 inHg = 33.8639 hPa)
-                    hpa = round(inhg * 33.8639, 1)
+                    # Convert inHg to hPa
+                    hpa = round(inhg * INHG_TO_HPA, 1)
                     _LOGGER.debug("Parsed A pressure: %s inHg = %s hPa", inhg, hpa)
                     return hpa
                 except ValueError:
@@ -653,13 +787,8 @@ class MetarParser:
         return None
 
     def _calculate_humidity(self, temp: Optional[float], dew: Optional[float]) -> Optional[float]:
-        """Calculate relative humidity from temperature and dew point."""
-        if temp is None or dew is None:
-            return None
-        try:
-            e = 6.11 * 10.0**(7.5 * dew / (237.7 + dew))
-            es = 6.11 * 10.0**(7.5 * temp / (237.7 + temp))
-            return round((e / es) * 100, 1)
-        except Exception as err:
-            _LOGGER.error("Error calculating humidity: %s", err)
-            return None
+        """Calculate relative humidity from temperature and dew point.
+
+        Delegates to shared utility function for consistency with AWC client.
+        """
+        return calculate_humidity(temp, dew)

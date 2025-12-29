@@ -11,7 +11,9 @@ API Documentation: https://aviationweather.gov/data/api/
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
@@ -21,12 +23,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError
 
-_LOGGER = logging.getLogger(__name__)
+from .const import (
+    KNOTS_TO_KMH,
+    MILES_TO_KM,
+    AWC_API_BASE_URL,
+    AWC_API_TIMEOUT,
+    DEFAULT_EXCELLENT_VISIBILITY_KM,
+)
+from .utils import calculate_humidity, parse_runway_states_from_raw
 
-# AWC API Configuration
-AWC_API_BASE_URL = "https://aviationweather.gov/api/data/metar"
-AWC_API_TIMEOUT = 30  # seconds
-AWC_API_RATE_LIMIT = 100  # requests per minute
+_LOGGER = logging.getLogger(__name__)
 
 
 class AWCApiError(HomeAssistantError):
@@ -44,7 +50,6 @@ class AWCApiClient:
         """
         self.hass = hass
         self.session = async_get_clientsession(hass)
-        self._last_request_time: Optional[datetime] = None
 
     async def fetch_metar(
         self,
@@ -80,12 +85,28 @@ class AWCApiClient:
                 params=params,
                 timeout=aiohttp.ClientTimeout(total=AWC_API_TIMEOUT)
             ) as response:
-                self._last_request_time = datetime.now(timezone.utc)
-
                 if response.status == 200:
                     data = await response.json()
                     _LOGGER.debug("AWC API response: %s", data)
-                    return data if isinstance(data, list) else [data]
+
+                    # Handle null, empty, or invalid responses
+                    if data is None:
+                        _LOGGER.warning("AWC API returned null for station(s): %s", ids)
+                        return None
+
+                    if isinstance(data, list):
+                        # Filter out None and empty dicts from list
+                        valid_data = [
+                            item for item in data
+                            if item and isinstance(item, dict)
+                        ]
+                        return valid_data if valid_data else None
+
+                    if isinstance(data, dict) and data:
+                        return [data]
+
+                    _LOGGER.warning("AWC API returned empty/invalid data for station(s): %s", ids)
+                    return None
 
                 elif response.status == 204:
                     _LOGGER.warning("No METAR data available for station(s): %s", ids)
@@ -97,6 +118,7 @@ class AWCApiClient:
                     raise AWCApiError(f"Invalid request: {text}")
 
                 elif response.status == 429:
+                    # TODO: Implement exponential backoff or token bucket for rate limiting
                     _LOGGER.warning("AWC API rate limit exceeded")
                     raise AWCApiError("Rate limit exceeded")
 
@@ -113,7 +135,7 @@ class AWCApiClient:
             _LOGGER.error("AWC API connection error: %s", err)
             raise AWCApiError(f"Connection error: {err}") from err
 
-        except TimeoutError as err:
+        except (TimeoutError, asyncio.TimeoutError) as err:
             _LOGGER.error("AWC API timeout")
             raise AWCApiError("Request timeout") from err
 
@@ -192,9 +214,9 @@ class AWCApiClient:
 
             # Convert wind speed from knots to km/h
             if wind_speed is not None:
-                wind_speed = round(float(wind_speed) * 1.852, 1)
+                wind_speed = round(float(wind_speed) * KNOTS_TO_KMH, 1)
             if wind_gust is not None:
-                wind_gust = round(float(wind_gust) * 1.852, 1)
+                wind_gust = round(float(wind_gust) * KNOTS_TO_KMH, 1)
 
             # Parse visibility (AWC returns in statute miles)
             visibility = None
@@ -205,18 +227,40 @@ class AWCApiClient:
                     if "+" in visib:
                         try:
                             base_value = float(visib.replace("+", ""))
-                            visibility = round(base_value * 1.60934, 1)
+                            visibility = round(base_value * MILES_TO_KM, 1)
                         except ValueError:
-                            visibility = 16.0  # Default for "10+" etc.
+                            visibility = DEFAULT_EXCELLENT_VISIBILITY_KM
+                    # Handle mixed fractions like "1 1/2" (1.5 SM)
+                    elif " " in visib and "/" in visib:
+                        try:
+                            space_parts = visib.split(" ")
+                            if len(space_parts) == 2:
+                                whole = float(space_parts[0])
+                                frac_parts = space_parts[1].split("/")
+                                if len(frac_parts) == 2:
+                                    frac = float(frac_parts[0]) / float(frac_parts[1])
+                                    visibility = round((whole + frac) * MILES_TO_KM, 1)
+                        except (ValueError, ZeroDivisionError):
+                            visibility = None
+                    # Handle simple fractions like "1/2", "1/4", "3/4"
+                    elif "/" in visib:
+                        try:
+                            parts = visib.split("/")
+                            if len(parts) == 2:
+                                numerator = float(parts[0])
+                                denominator = float(parts[1])
+                                visibility = round((numerator / denominator) * MILES_TO_KM, 1)
+                        except (ValueError, ZeroDivisionError):
+                            visibility = None
                     else:
                         try:
                             # Convert statute miles to kilometers
-                            visibility = round(float(visib) * 1.60934, 1)
+                            visibility = round(float(visib) * MILES_TO_KM, 1)
                         except ValueError:
                             visibility = None
                 else:
                     # Numeric value in statute miles
-                    visibility = round(float(visib) * 1.60934, 1)
+                    visibility = round(float(visib) * MILES_TO_KM, 1)
 
             # Parse pressure (AWC API returns altimeter already in hPa/millibars)
             pressure = None
@@ -224,41 +268,50 @@ class AWCApiClient:
             if altim is not None:
                 pressure = round(float(altim), 1)
 
-            # Parse clouds
+            # Parse clouds (AWC API returns base already in feet)
+            # Use 'or []' because get() returns None if key exists with null value
+            # Also verify type is list to handle unexpected API changes
             cloud_layers = []
-            clouds = data.get("clouds", [])
-            if clouds:
+            clouds = data.get("clouds")
+            if isinstance(clouds, list):
                 for cloud in clouds:
-                    cover = cloud.get("cover", "")
-                    base = cloud.get("base")
-                    cloud_layers.append({
-                        "coverage": cover,
-                        "height": base * 100 if base else None,  # Convert to feet
-                        "type": cloud.get("type")
-                    })
+                    if isinstance(cloud, dict):
+                        cover = cloud.get("cover", "")
+                        base = cloud.get("base")
+                        cloud_layers.append({
+                            "coverage": cover,
+                            "height": base if base else None,  # Already in feet
+                            "type": cloud.get("type")
+                        })
 
-            # Calculate humidity
+            # Calculate humidity using shared utility function
             temp = data.get("temp")
             dewp = data.get("dewp")
-            humidity = None
-            if temp is not None and dewp is not None:
-                try:
-                    e = 6.11 * 10.0 ** (7.5 * dewp / (237.7 + dewp))
-                    es = 6.11 * 10.0 ** (7.5 * temp / (237.7 + temp))
-                    humidity = round((e / es) * 100, 1)
-                except (ZeroDivisionError, ValueError):
-                    humidity = None
+            humidity = calculate_humidity(temp, dewp)
 
             # Parse observation time
             obs_time = data.get("obsTime")
             if obs_time:
                 try:
-                    observation_time = datetime.fromisoformat(
-                        obs_time.replace("Z", "+00:00")
+                    # Handle different timezone formats
+                    # AWC API typically returns "2024-01-15T12:00:00Z"
+                    # but could also return "2024-01-15T12:00:00+00:00"
+                    if obs_time.endswith("Z"):
+                        obs_time_parsed = obs_time[:-1] + "+00:00"
+                    else:
+                        obs_time_parsed = obs_time
+                    observation_time = datetime.fromisoformat(obs_time_parsed)
+                except ValueError as err:
+                    _LOGGER.warning(
+                        "Failed to parse observation time '%s': %s. Using current time.",
+                        obs_time, err
                     )
-                except ValueError:
                     observation_time = datetime.now(timezone.utc)
             else:
+                _LOGGER.warning(
+                    "No observation time (obsTime) in AWC response for %s, using current time",
+                    data.get("icaoId", "unknown")
+                )
                 observation_time = datetime.now(timezone.utc)
 
             # Determine CAVOK (Ceiling And Visibility OK - visibility >= 10 km)
@@ -271,6 +324,9 @@ class AWCApiClient:
 
             # Parse weather string
             weather = data.get("wxString") or "Clear"
+
+            # Parse runway states from raw METAR (AWC doesn't provide this directly)
+            runway_states = parse_runway_states_from_raw(raw_metar) if raw_metar else {}
 
             # Build parsed data
             parsed = {
@@ -288,13 +344,13 @@ class AWCApiClient:
                 "pressure": pressure,
                 "weather": weather,
                 "cloud_layers": cloud_layers,
-                "cloud_coverage_state": cloud_layers[0]["coverage"] if cloud_layers else "Clear",
-                "cloud_coverage_height": cloud_layers[0]["height"] if cloud_layers else None,
-                "cloud_coverage_type": cloud_layers[0].get("type", "N/A") if cloud_layers else "N/A",
+                "cloud_coverage_state": cloud_layers[0].get("coverage", "Clear") if cloud_layers else "Clear",
+                "cloud_coverage_height": cloud_layers[0].get("height") if cloud_layers else None,
+                "cloud_coverage_type": cloud_layers[0].get("type") or "N/A" if cloud_layers else "N/A",
                 "cavok": cavok,
                 "auto": "AUTO" in raw_metar,
                 "trend": None,
-                "runway_states": {},
+                "runway_states": runway_states,
             }
 
             _LOGGER.debug("Parsed AWC data for %s: %s", data.get("icaoId"), parsed)
