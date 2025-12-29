@@ -49,6 +49,10 @@ Every configured station provides a complete set of sensors:
 - **CAVOK Status** and trend information
 - **Raw METAR String** for reference
 
+> **ℹ️ Note on Runway State Information**
+> 
+> Since November 4, 2021, following amendments to ICAO Annexes 3, 14, and 15, the Runway State Group (RSG) has been officially deprecated in METAR reports. Most countries—including EU member states, the United States, Canada, and Australia—have fully transitioned to the SNOWTAM/GRF (Global Reporting Format) system for runway condition reporting. As a result, runway state information is no longer included in METAR for the majority of airports worldwide. Some countries that maintain independent meteorological reporting standards may still include RSG data in their METAR broadcasts.
+
 ### Intelligent Trend Analysis
 
 The integration tracks historical data and calculates trends automatically:
