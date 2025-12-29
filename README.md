@@ -69,13 +69,16 @@ If the primary source is unavailable, the integration seamlessly switches to the
 
 ### Flexible Unit Configuration
 
-Choose your preferred units or let the integration follow your Home Assistant settings:
+Choose your preferred units, use Home Assistant system settings, or native aviation units:
 
-- Temperature: Celsius or Fahrenheit
-- Wind Speed: km/h, m/s, mph, or knots
-- Visibility: kilometers or miles
-- Pressure: hPa or inHg
-- Altitude: meters or feet
+- **Auto**: Follow Home Assistant system settings
+- **Native (METAR)**: Standard aviation units (°C, knots, statute miles, hPa, feet)
+- **Manual selection**:
+  - Temperature: Celsius or Fahrenheit
+  - Wind Speed: km/h, m/s, mph, or knots
+  - Visibility: kilometers, meters, miles, or feet
+  - Pressure: hPa, inHg, or mmHg
+  - Cloud Height: meters or feet
 
 ### Multi-Station Support
 
