@@ -158,9 +158,9 @@ Both sources provide official NOAA/NWS data. The integration automatically falls
 
 ## Legal Disclaimer
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+⚠️ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
 
-**CRITICAL**: This integration is NOT certified for aviation navigation or flight planning. Always consult official aviation weather sources for aviation activities.
+**⚠️ CRITICAL**: This integration is NOT certified for aviation navigation or flight planning. Always consult official aviation weather sources for aviation activities.
 
 ## License
 
