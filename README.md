@@ -37,10 +37,19 @@ METAR reports are standardized aviation weather observations that include:
 - **Real-time data** from over 9,000 airports worldwide
 
 ### Data Sources
-- **Primary**: NOAA Aviation Weather Center (AWC)
-- **Backup**: Aviation Digital Data Service (ADDS)
+
+This integration uses a multi-source architecture for reliability:
+
+| Source | Type | Description |
+|--------|------|-------------|
+| **AWC REST API** | Primary | Aviation Weather Center API (aviationweather.gov) |
+| **NOAA FTP** | Fallback | Traditional FTP source via AVWX (tgftp.nws.noaa.gov) |
+
+Both sources provide official NOAA data, ensuring consistency. The integration automatically falls back to the secondary source if the primary is unavailable.
+
 - **Update Frequency**: Every 30 minutes (configurable)
 - **Data Retention**: 24-hour historical storage per station
+- **Rate Limit**: 100 requests/minute (AWC API)
 
 ### Performance
 - Updates every 30 minutes automatically

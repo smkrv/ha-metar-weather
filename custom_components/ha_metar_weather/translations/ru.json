@@ -3,10 +3,21 @@
         "step": {
             "user": {
                 "title": "Настройка HA METAR Weather",
-                "description": "Настройка мониторинга метеосводок METAR. Источник данных: https://tgftp.nws.noaa.gov/\nПожалуйста, убедитесь, что вы соблюдаете условия использования данных.",
+                "description": "Настройка мониторинга метеосводок METAR.\n\nИсточники данных (NOAA):\n• Основной: Aviation Weather Center API (aviationweather.gov)\n• Резервный: NOAA FTP (tgftp.nws.noaa.gov)\n\nПожалуйста, убедитесь, что вы соблюдаете условия использования данных NOAA.",
                 "data": {
                     "icao": "ICAO код аэропорта",
                     "terms_accepted": "Я принимаю условия использования источника данных"
+                }
+            },
+            "units": {
+                "title": "Настройка единиц измерения",
+                "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.",
+                "data": {
+                    "temperature_unit": "Температура",
+                    "wind_speed_unit": "Скорость ветра",
+                    "visibility_unit": "Видимость",
+                    "pressure_unit": "Давление",
+                    "altitude_unit": "Высота облаков / Высота"
                 }
             }
         },
@@ -21,7 +32,25 @@
     "options": {
         "step": {
             "init": {
-                "title": "Управление METAR станциями",
+                "title": "Настройки METAR",
+                "menu_options": {
+                    "units": "Настройка единиц измерения",
+                    "stations": "Управление станциями"
+                }
+            },
+            "units": {
+                "title": "Настройка единиц измерения",
+                "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.",
+                "data": {
+                    "temperature_unit": "Температура",
+                    "wind_speed_unit": "Скорость ветра",
+                    "visibility_unit": "Видимость",
+                    "pressure_unit": "Давление",
+                    "altitude_unit": "Высота облаков / Высота"
+                }
+            },
+            "stations": {
+                "title": "Управление станциями",
                 "description": "Текущие настроенные станции:\n{stations}"
             },
             "station_add": {

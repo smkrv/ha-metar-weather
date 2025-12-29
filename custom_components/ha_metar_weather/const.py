@@ -31,6 +31,13 @@ CONF_ICAO: Final[str] = "icao"
 CONF_TERMS_ACCEPTED: Final[str] = "terms_accepted"
 CONF_STATIONS: Final[str] = "stations"
 
+# Unit configuration keys
+CONF_TEMP_UNIT: Final[str] = "temperature_unit"
+CONF_WIND_SPEED_UNIT: Final[str] = "wind_speed_unit"
+CONF_VISIBILITY_UNIT: Final[str] = "visibility_unit"
+CONF_PRESSURE_UNIT: Final[str] = "pressure_unit"
+CONF_ALTITUDE_UNIT: Final[str] = "altitude_unit"
+
 # Custom units
 DEGREE: Final[str] = "°"
 PERCENTAGE: Final[str] = "%"
@@ -242,3 +249,45 @@ UNIT_FORMATS: Final[Dict[str, str]] = {
     UnitOfSpeed.KILOMETERS_PER_HOUR: "km/h",
     UnitOfSpeed.KNOTS: "kt",
 }
+
+# Available units for user selection
+AVAILABLE_TEMP_UNITS: Final[list[str]] = [
+    UnitOfTemperature.CELSIUS,
+    UnitOfTemperature.FAHRENHEIT,
+]
+
+AVAILABLE_WIND_SPEED_UNITS: Final[list[str]] = [
+    UnitOfSpeed.KILOMETERS_PER_HOUR,
+    UnitOfSpeed.METERS_PER_SECOND,
+    UnitOfSpeed.MILES_PER_HOUR,
+    UnitOfSpeed.KNOTS,
+]
+
+AVAILABLE_VISIBILITY_UNITS: Final[list[str]] = [
+    UnitOfLength.KILOMETERS,
+    UnitOfLength.METERS,
+    UnitOfLength.MILES,
+    UnitOfLength.FEET,
+]
+
+AVAILABLE_PRESSURE_UNITS: Final[list[str]] = [
+    UnitOfPressure.HPA,
+    UnitOfPressure.INHG,
+    UnitOfPressure.MMHG,
+    UnitOfPressure.MBAR,
+]
+
+AVAILABLE_ALTITUDE_UNITS: Final[list[str]] = [
+    UnitOfLength.FEET,
+    UnitOfLength.METERS,
+]
+
+# Default units (matching aviation standards)
+DEFAULT_TEMP_UNIT: Final[str] = UnitOfTemperature.CELSIUS
+DEFAULT_WIND_SPEED_UNIT: Final[str] = UnitOfSpeed.KNOTS
+DEFAULT_VISIBILITY_UNIT: Final[str] = UnitOfLength.KILOMETERS
+DEFAULT_PRESSURE_UNIT: Final[str] = UnitOfPressure.HPA
+DEFAULT_ALTITUDE_UNIT: Final[str] = UnitOfLength.FEET
+
+# Unit option key for "auto" (use HA system)
+UNIT_AUTO: Final[str] = "auto"

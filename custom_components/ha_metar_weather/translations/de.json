@@ -3,10 +3,21 @@
         "step": {
             "user": {
                 "title": "HA METAR Weather Einrichtung",
-                "description": "Einrichtung der METAR-Wetterüberwachung. Datenquelle: https://tgftp.nws.noaa.gov/\nBitte stellen Sie sicher, dass Sie die Nutzungsbedingungen der Datenquelle einhalten.",
+                "description": "Einrichtung der METAR-Wetterüberwachung.\n\nDatenquellen (NOAA):\n• Primär: Aviation Weather Center API (aviationweather.gov)\n• Fallback: NOAA FTP (tgftp.nws.noaa.gov)\n\nBitte stellen Sie sicher, dass Sie die NOAA-Nutzungsbedingungen einhalten.",
                 "data": {
                     "icao": "ICAO Flughafencode",
                     "terms_accepted": "Ich akzeptiere die Nutzungsbedingungen der Datenquelle"
+                }
+            },
+            "units": {
+                "title": "Einheitenkonfiguration",
+                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.",
+                "data": {
+                    "temperature_unit": "Temperatur",
+                    "wind_speed_unit": "Windgeschwindigkeit",
+                    "visibility_unit": "Sichtweite",
+                    "pressure_unit": "Luftdruck",
+                    "altitude_unit": "Wolkenhöhe / Höhe"
                 }
             }
         },
@@ -21,7 +32,25 @@
     "options": {
         "step": {
             "init": {
-                "title": "METAR Stationen verwalten",
+                "title": "METAR Einstellungen",
+                "menu_options": {
+                    "units": "Einheiten konfigurieren",
+                    "stations": "Stationen verwalten"
+                }
+            },
+            "units": {
+                "title": "Einheitenkonfiguration",
+                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.",
+                "data": {
+                    "temperature_unit": "Temperatur",
+                    "wind_speed_unit": "Windgeschwindigkeit",
+                    "visibility_unit": "Sichtweite",
+                    "pressure_unit": "Luftdruck",
+                    "altitude_unit": "Wolkenhöhe / Höhe"
+                }
+            },
+            "stations": {
+                "title": "Stationen verwalten",
                 "description": "Aktuell konfigurierte Stationen:\n{stations}"
             },
             "station_add": {

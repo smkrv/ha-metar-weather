@@ -3,10 +3,21 @@
         "step": {
             "user": {
                 "title": "HA METAR Weather Setup",
-                "description": "Set up METAR weather monitoring. Data source: https://tgftp.nws.noaa.gov/\nPlease make sure you comply with the data usage terms.",
+                "description": "Set up METAR weather monitoring.\n\nData sources (NOAA):\n• Primary: Aviation Weather Center API (aviationweather.gov)\n• Fallback: NOAA FTP (tgftp.nws.noaa.gov)\n\nPlease make sure you comply with the NOAA data usage terms.",
                 "data": {
                     "icao": "ICAO Airport Code",
                     "terms_accepted": "I accept the terms and conditions of the data source"
+                }
+            },
+            "units": {
+                "title": "Unit Configuration",
+                "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.",
+                "data": {
+                    "temperature_unit": "Temperature",
+                    "wind_speed_unit": "Wind Speed",
+                    "visibility_unit": "Visibility",
+                    "pressure_unit": "Pressure",
+                    "altitude_unit": "Cloud Height / Altitude"
                 }
             }
         },
@@ -21,7 +32,25 @@
     "options": {
         "step": {
             "init": {
-                "title": "Manage METAR Stations",
+                "title": "METAR Settings",
+                "menu_options": {
+                    "units": "Configure Units",
+                    "stations": "Manage Stations"
+                }
+            },
+            "units": {
+                "title": "Unit Configuration",
+                "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.",
+                "data": {
+                    "temperature_unit": "Temperature",
+                    "wind_speed_unit": "Wind Speed",
+                    "visibility_unit": "Visibility",
+                    "pressure_unit": "Pressure",
+                    "altitude_unit": "Cloud Height / Altitude"
+                }
+            },
+            "stations": {
+                "title": "Manage Stations",
                 "description": "Currently configured stations:\n{stations}"
             },
             "station_add": {

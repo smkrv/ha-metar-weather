@@ -36,6 +36,11 @@ from homeassistant.helpers.update_coordinator import (
 from .const import (
     DOMAIN,
     CONF_STATIONS,
+    CONF_TEMP_UNIT,
+    CONF_WIND_SPEED_UNIT,
+    CONF_VISIBILITY_UNIT,
+    CONF_PRESSURE_UNIT,
+    CONF_ALTITUDE_UNIT,
     ATTR_LAST_UPDATE,
     ATTR_STATION_NAME,
     ATTR_RAW_METAR,
@@ -48,6 +53,12 @@ from .const import (
     VERSION,
     FIXED_UNITS,
     UNIT_MAPPINGS,
+    UNIT_AUTO,
+    DEFAULT_TEMP_UNIT,
+    DEFAULT_WIND_SPEED_UNIT,
+    DEFAULT_VISIBILITY_UNIT,
+    DEFAULT_PRESSURE_UNIT,
+    DEFAULT_ALTITUDE_UNIT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -235,11 +246,13 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         coordinator: DataUpdateCoordinator,
         station: str,
         description: MetarSensorEntityDescription,
+        config_entry: ConfigEntry,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
         self._station = station
+        self._config_entry = config_entry
         self._attr_unique_id = f"{DOMAIN}_{station}_{description.key}"
         self._attr_name = f"METAR {station} {description.name}"
         self._attr_native_unit_of_measurement = description.native_unit_of_measurement
@@ -248,7 +261,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         self._attr_device_info = {
             "identifiers": {(DOMAIN, station)},
             "name": f"METAR {station}",
-            "manufacturer": "AVWX / Community",
+            "manufacturer": "NOAA / AWC",
             "model": "METAR Weather Station",
             "sw_version": VERSION,
             "entry_type": "service",
@@ -259,8 +272,39 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         await super().async_added_to_hass()
         self._update_units()
 
+    def _get_configured_unit(self, unit_key: str, default: str) -> str:
+        """Get configured unit from config entry or return default.
+
+        Args:
+            unit_key: Configuration key for the unit
+            default: Default unit value
+
+        Returns:
+            The configured unit or resolved auto unit
+        """
+        configured = self._config_entry.data.get(unit_key, UNIT_AUTO)
+
+        if configured == UNIT_AUTO:
+            # Use Home Assistant system settings
+            is_metric = self.hass.config.units.temperature_unit == UnitOfTemperature.CELSIUS
+
+            if unit_key == CONF_TEMP_UNIT:
+                return UnitOfTemperature.CELSIUS if is_metric else UnitOfTemperature.FAHRENHEIT
+            elif unit_key == CONF_WIND_SPEED_UNIT:
+                return UnitOfSpeed.KILOMETERS_PER_HOUR if is_metric else UnitOfSpeed.MILES_PER_HOUR
+            elif unit_key == CONF_VISIBILITY_UNIT:
+                return UnitOfLength.KILOMETERS if is_metric else UnitOfLength.MILES
+            elif unit_key == CONF_PRESSURE_UNIT:
+                return UnitOfPressure.HPA if is_metric else UnitOfPressure.INHG
+            elif unit_key == CONF_ALTITUDE_UNIT:
+                return UnitOfLength.METERS if is_metric else UnitOfLength.FEET
+
+            return default
+
+        return configured
+
     def _update_units(self) -> None:
-        """Update units based on system preferences."""
+        """Update units based on configuration preferences."""
         key = self.entity_description.key
 
         # Skip update for sensors with fixed units
@@ -268,13 +312,31 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             self._attr_native_unit_of_measurement = FIXED_UNITS[key]
             return
 
-        if key in UNIT_MAPPINGS:
-            system = (
-                HA_CONF_UNIT_SYSTEM_METRIC
-                if self.hass.config.units.temperature_unit == UnitOfTemperature.CELSIUS
-                else HA_CONF_UNIT_SYSTEM_IMPERIAL
-            )
-            self._attr_native_unit_of_measurement = UNIT_MAPPINGS[key][system]
+        # Map sensor keys to unit configuration keys
+        unit_key_mapping = {
+            "temperature": CONF_TEMP_UNIT,
+            "dew_point": CONF_TEMP_UNIT,
+            "wind_speed": CONF_WIND_SPEED_UNIT,
+            "wind_gust": CONF_WIND_SPEED_UNIT,
+            "visibility": CONF_VISIBILITY_UNIT,
+            "pressure": CONF_PRESSURE_UNIT,
+            "cloud_coverage_height": CONF_ALTITUDE_UNIT,
+        }
+
+        default_mapping = {
+            "temperature": DEFAULT_TEMP_UNIT,
+            "dew_point": DEFAULT_TEMP_UNIT,
+            "wind_speed": DEFAULT_WIND_SPEED_UNIT,
+            "wind_gust": DEFAULT_WIND_SPEED_UNIT,
+            "visibility": DEFAULT_VISIBILITY_UNIT,
+            "pressure": DEFAULT_PRESSURE_UNIT,
+            "cloud_coverage_height": DEFAULT_ALTITUDE_UNIT,
+        }
+
+        if key in unit_key_mapping:
+            unit_key = unit_key_mapping[key]
+            default = default_mapping[key]
+            self._attr_native_unit_of_measurement = self._get_configured_unit(unit_key, default)
 
     @property
     def native_value(self) -> Optional[Union[str, float, int]]:
@@ -321,6 +383,10 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         if self.coordinator.data:
             attrs[ATTR_LAST_UPDATE] = self.coordinator.data.get("observation_time")
             attrs["station"] = self._station
+
+            # Add data source info if available
+            if hasattr(self.coordinator, 'client') and hasattr(self.coordinator.client, 'last_source'):
+                attrs["data_source"] = self.coordinator.client.last_source
 
             if "station_name" in self.coordinator.data:
                 attrs[ATTR_STATION_NAME] = self.coordinator.data["station_name"]
@@ -428,6 +494,7 @@ async def async_setup_entry(
                 coordinator=coordinator,
                 station=station,
                 description=description,
+                config_entry=config_entry,
             ))
 
         # Setup individual runway sensors
@@ -445,7 +512,8 @@ async def async_setup_entry(
                             value_fn=lambda data, r=runway: data.get("runway_states", {}).get(r),
                             icon="mdi:runway",
                             has_history=False,
-                        )
+                        ),
+                        config_entry=config_entry,
                     )
                 )
 
