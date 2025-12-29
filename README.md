@@ -2,7 +2,11 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/smkrv/ha-metar-weather)](https://github.com/smkrv/ha-metar-weather/releases)
-[![GitHub](https://img.shields.io/github/license/smkrv/ha-metar-weather)](LICENSE)
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.2+-41BDF5.svg)](https://www.home-assistant.io/)
+[![English](https://img.shields.io/badge/lang-English-blue.svg)](#localization)
+[![Русский](https://img.shields.io/badge/lang-Русский-blue.svg)](#localization)
+[![Deutsch](https://img.shields.io/badge/lang-Deutsch-blue.svg)](#localization)
 
 Professional aviation weather monitoring for Home Assistant. Get real-time METAR data from over 9,000 airport weather stations worldwide with automatic trend analysis and historical tracking.
 
