@@ -10,8 +10,7 @@ from __future__ import annotations
 import logging
 import asyncio
 import re
-import sys
-
+from asyncio import timeout as async_timeout
 from datetime import timedelta
 
 import voluptuous as vol
@@ -47,12 +46,6 @@ from .const import (
     ICAO_REGEX,
 )
 
-# Compatibility for Python < 3.11
-if sys.version_info >= (3, 11):
-    from asyncio import timeout as async_timeout
-else:
-    from async_timeout import timeout as async_timeout
-
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
@@ -85,6 +78,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 f"Invalid ICAO code format: {station}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_icao_format",
+                translation_placeholders={"station": station},
             )
 
         # Search for the station across all config entries
@@ -103,6 +97,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             f"Station {station} not found in any config entry",
             translation_domain=DOMAIN,
             translation_key="station_not_found",
+            translation_placeholders={"station": station},
         )
 
     async def async_clear_history(call: ServiceCall) -> None:
@@ -115,6 +110,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 f"Invalid ICAO code format: {station}",
                 translation_domain=DOMAIN,
                 translation_key="invalid_icao_format",
+                translation_placeholders={"station": station},
             )
 
         storage: MetarHistoryStorage = hass.data[DOMAIN].get("storage")
@@ -124,6 +120,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 "Storage not initialized",
                 translation_domain=DOMAIN,
                 translation_key="storage_not_initialized",
+                translation_placeholders={},
             )
 
         # Check if station exists in any config entry
@@ -152,6 +149,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 f"Station {station} is not configured",
                 translation_domain=DOMAIN,
                 translation_key="station_not_configured",
+                translation_placeholders={"station": station},
             )
 
     # Only register services if not already registered
