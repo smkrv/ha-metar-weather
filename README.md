@@ -140,7 +140,14 @@ logger:
 
 ## Data Sources
 
-This integration uses official NOAA/NWS data from the Aviation Weather Center. Users must comply with [NOAA data usage terms](https://www.weather.gov/disclaimer).
+This integration fetches METAR data from two official sources:
+
+| Source | Description |
+|--------|-------------|
+| **AWC REST API** | Aviation Weather Center API (aviationweather.gov) |
+| **NOAA FTP** | Traditional FTP source via AVWX (tgftp.nws.noaa.gov) |
+
+Both sources provide official NOAA/NWS data. The integration automatically falls back to the secondary source if the primary is unavailable. Users must comply with [NOAA data usage terms](https://www.weather.gov/disclaimer).
 
 ## Legal Disclaimer
 
