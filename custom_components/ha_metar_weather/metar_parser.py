@@ -84,6 +84,8 @@ class MetarParser:
         """Parse cloud information from METAR.
 
         Results are cached to avoid repeated parsing.
+        Only parses current conditions - stops before trend/forecast sections
+        (TEMPO, BECMG, FM, PROB30, PROB40, NOSIG, RMK).
         """
         if self._cloud_layers_cache is not None:
             return self._cloud_layers_cache
@@ -93,6 +95,9 @@ class MetarParser:
             # Search for string parts containing cloud information
             parts = self.raw_metar.split()
             for part in parts:
+                # Stop at trend/forecast sections - these are not current conditions
+                if part in ('TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40', 'NOSIG', 'RMK'):
+                    break
                 # Standard cloud layers: FEW, SCT, BKN, OVC
                 if any(part.startswith(prefix) for prefix in ['FEW', 'SCT', 'BKN', 'OVC']):
                     coverage_code = part[:3]
@@ -213,9 +218,12 @@ class MetarParser:
                     original_part[1:].isdigit()):
                     continue
 
-                # Skip trend indicators and other non-weather markers
-                if original_part in ['TEMPO', 'BECMG', 'FM', 'TL', 'AT', 'PROB30', 'PROB40',
-                                     'SKC', 'CLR', 'NSC', 'NCD', 'AUTO', 'COR']:
+                # Stop at trend/forecast sections - these are not current conditions
+                if original_part in ('TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40'):
+                    break
+
+                # Skip non-weather markers
+                if original_part in ['TL', 'AT', 'SKC', 'CLR', 'NSC', 'NCD', 'AUTO', 'COR']:
                     continue
 
                 weather = ''
@@ -264,13 +272,29 @@ class MetarParser:
                     if full_weather and full_weather not in weather_codes:
                         weather_codes.append(full_weather)
 
-            # Handle special cases
+            # Handle special cases - recent weather (RE prefix)
             if 'RESN' in parts:
                 weather_codes.append('Recent Snow')
             if 'RETS' in parts:
                 weather_codes.append('Recent Thunderstorm')
             if 'RERA' in parts:
                 weather_codes.append('Recent Rain')
+            if 'REDZ' in parts:
+                weather_codes.append('Recent Drizzle')
+            if 'REFZRA' in parts:
+                weather_codes.append('Recent Freezing Rain')
+            if 'REPL' in parts:
+                weather_codes.append('Recent Ice Pellets')
+            if 'REGR' in parts:
+                weather_codes.append('Recent Hail')
+            if 'REGS' in parts:
+                weather_codes.append('Recent Small Hail')
+            if 'RESH' in parts:
+                weather_codes.append('Recent Showers')
+            if 'REBLSN' in parts:
+                weather_codes.append('Recent Blowing Snow')
+            if 'REFG' in parts:
+                weather_codes.append('Recent Fog')
 
             _LOGGER.debug(
                 "Parsed weather phenomena: %s from METAR: %s",
