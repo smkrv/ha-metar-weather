@@ -326,3 +326,16 @@ DEFAULT_ALTITUDE_UNIT: Final[str] = UnitOfLength.FEET
 
 # Unit option key for "auto" (use HA system)
 UNIT_AUTO: Final[str] = "auto"
+
+# Unit option key for "native" (use original METAR/aviation units)
+UNIT_NATIVE: Final[str] = "native"
+
+# Native METAR units mapping (standard aviation units)
+# These are the units typically used in METAR reports
+NATIVE_METAR_UNITS: Final[Dict[str, str]] = {
+    "temperature": UnitOfTemperature.CELSIUS,      # METAR always uses Celsius
+    "wind_speed": UnitOfSpeed.KNOTS,               # METAR uses knots (KT) or m/s (MPS)
+    "visibility": UnitOfLength.MILES,              # US METAR uses statute miles (SM)
+    "pressure": UnitOfPressure.HPA,                # ICAO uses hPa (QNH), US uses inHg (A)
+    "altitude": UnitOfLength.FEET,                 # Cloud heights always in feet
+}

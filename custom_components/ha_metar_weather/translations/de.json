@@ -11,7 +11,7 @@
             },
             "units": {
                 "title": "Einheitenkonfiguration",
-                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.",
+                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für Standard-Luftfahrteinheiten (Knoten, Meilen, Fuß, hPa).",
                 "data": {
                     "temperature_unit": "Temperatur",
                     "wind_speed_unit": "Windgeschwindigkeit",
@@ -42,7 +42,7 @@
             },
             "units": {
                 "title": "Einheitenkonfiguration",
-                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.",
+                "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für Standard-Luftfahrteinheiten (Knoten, Meilen, Fuß, hPa).",
                 "data": {
                     "temperature_unit": "Temperatur",
                     "wind_speed_unit": "Windgeschwindigkeit",

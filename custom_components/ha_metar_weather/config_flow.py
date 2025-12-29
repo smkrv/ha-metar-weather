@@ -46,6 +46,7 @@ from .const import (
     DEFAULT_PRESSURE_UNIT,
     DEFAULT_ALTITUDE_UNIT,
     UNIT_AUTO,
+    UNIT_NATIVE,
     UNIT_FORMATS,
 )
 
@@ -60,11 +61,17 @@ class InvalidStation(HomeAssistantError):
     """Error to indicate invalid station code."""
 
 
-def _build_unit_options(units: list[str], include_auto: bool = True) -> dict:
+def _build_unit_options(
+    units: list[str],
+    include_auto: bool = True,
+    include_native: bool = True
+) -> dict:
     """Build unit selector options with display names."""
     options = {}
     if include_auto:
         options[UNIT_AUTO] = "Auto (Home Assistant)"
+    if include_native:
+        options[UNIT_NATIVE] = "Native (METAR)"
     for unit in units:
         display = UNIT_FORMATS.get(unit, unit)
         options[unit] = display

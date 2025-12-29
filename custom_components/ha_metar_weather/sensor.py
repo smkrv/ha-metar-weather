@@ -52,6 +52,8 @@ from .const import (
     VERSION,
     FIXED_UNITS,
     UNIT_AUTO,
+    UNIT_NATIVE,
+    NATIVE_METAR_UNITS,
     DEFAULT_TEMP_UNIT,
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_VISIBILITY_UNIT,
@@ -318,7 +320,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             default: Default unit value
 
         Returns:
-            The configured unit or resolved auto unit
+            The configured unit or resolved auto/native unit
         """
         configured = self._config_entry.data.get(unit_key, UNIT_AUTO)
 
@@ -337,6 +339,20 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             elif unit_key == CONF_ALTITUDE_UNIT:
                 return UnitOfLength.METERS if is_metric else UnitOfLength.FEET
 
+            return default
+
+        if configured == UNIT_NATIVE:
+            # Use native METAR/aviation units
+            native_key_mapping = {
+                CONF_TEMP_UNIT: "temperature",
+                CONF_WIND_SPEED_UNIT: "wind_speed",
+                CONF_VISIBILITY_UNIT: "visibility",
+                CONF_PRESSURE_UNIT: "pressure",
+                CONF_ALTITUDE_UNIT: "altitude",
+            }
+            native_key = native_key_mapping.get(unit_key)
+            if native_key and native_key in NATIVE_METAR_UNITS:
+                return NATIVE_METAR_UNITS[native_key]
             return default
 
         return configured
