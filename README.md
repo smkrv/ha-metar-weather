@@ -31,6 +31,10 @@ Professional aviation weather monitoring for Home Assistant. Get real-time METAR
 
 ## Features
 
+<div align="center">
+  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/screenshot.png" alt="HA METAR Weather — screenshot" width="700"/>
+</div>
+
 ### Global Coverage
 
 Access real-time weather data from over 9,000 airport weather stations worldwide. The integration supports any airport with an ICAO code that publishes METAR reports.
