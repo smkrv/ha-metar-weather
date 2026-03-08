@@ -27,6 +27,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (
     KNOTS_TO_KMH,
     MILES_TO_KM,
+    INHG_TO_HPA,
     AWC_API_BASE_URL,
     AWC_API_TIMEOUT,
     DEFAULT_EXCELLENT_VISIBILITY_KM,
@@ -161,41 +162,15 @@ class AWCApiClient:
     def parse_awc_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Parse AWC API response into internal format.
 
-        The AWC API returns JSON with the following structure:
-        {
-            "icaoId": "KJFK",
-            "obsTime": "2024-01-15T12:00:00Z",
-            "temp": 5.0,
-            "dewp": 2.0,
-            "wdir": 270,
-            "wspd": 10,
-            "wgst": null,
-            "visib": "10+",
-            "altim": 30.12,
-            "slp": 1020.5,
-            "qcField": 0,
-            "wxString": null,
-            "presTend": null,
-            "maxT": null,
-            "minT": null,
-            "maxT24": null,
-            "minT24": null,
-            "precip": null,
-            "pcp3hr": null,
-            "pcp6hr": null,
-            "pcp24hr": null,
-            "snow": null,
-            "vertVis": null,
-            "metarType": "METAR",
-            "rawOb": "KJFK 151200Z 27010KT 10SM FEW250 05/02 A3012",
-            "mostRecent": 1,
-            "lat": 40.6398,
-            "lon": -73.7789,
-            "elev": 4,
-            "prior": 0,
-            "name": "John F Kennedy Intl",
-            "clouds": [{"cover": "FEW", "base": 25000}]
-        }
+        The AWC API returns JSON. Key fields (as of 2026):
+        - obsTime: int (epoch seconds) — previously was ISO string
+        - temp/dewp: int (°C) — previously float
+        - altim: int (hPa) — previously float (inHg)
+        - visib: str (statute miles, e.g. "6+", "10")
+        - wspd/wgst: int (knots)
+        - rawOb: str (raw METAR)
+        - clouds: list[dict] with cover/base
+        - name: str (station name)
 
         Args:
             data: AWC API response data
@@ -267,11 +242,24 @@ class AWCApiClient:
                     # Numeric value in statute miles
                     visibility = round(float(visib) * MILES_TO_KM, 1)
 
-            # Parse pressure (AWC API returns altimeter already in hPa/millibars)
+            # Parse pressure
+            # AWC API now returns altim in hPa (e.g. 1021).
+            # Older responses used inHg (e.g. 30.12). Auto-detect by value range.
             pressure = None
             altim = data.get("altim")
             if altim is not None:
-                pressure = round(float(altim), 1)
+                try:
+                    altim_f = float(altim)
+                    if altim_f < 100:
+                        # Value in inHg (e.g. 30.12) — convert to hPa
+                        pressure = round(altim_f * INHG_TO_HPA, 1)
+                    else:
+                        pressure = round(altim_f, 1)
+                except (ValueError, TypeError):
+                    _LOGGER.warning(
+                        "Failed to parse altimeter '%s' for %s",
+                        altim, data.get("icaoId", "unknown"),
+                    )
 
             # Parse clouds (AWC API returns base already in feet)
             # Use 'or []' because get() returns None if key exists with null value
@@ -295,18 +283,28 @@ class AWCApiClient:
             humidity = calculate_humidity(temp, dewp)
 
             # Parse observation time
+            # AWC API returns obsTime as epoch int (since ~2026) or ISO string
             obs_time = data.get("obsTime")
-            if obs_time:
+            if obs_time is not None:
                 try:
-                    # Handle different timezone formats
-                    # AWC API typically returns "2024-01-15T12:00:00Z"
-                    # but could also return "2024-01-15T12:00:00+00:00"
-                    if obs_time.endswith("Z"):
-                        obs_time_parsed = obs_time[:-1] + "+00:00"
+                    if isinstance(obs_time, (int, float)):
+                        if obs_time < 0:
+                            raise ValueError(f"Negative epoch value: {obs_time}")
+                        observation_time = datetime.fromtimestamp(obs_time, tz=timezone.utc)
+                    elif isinstance(obs_time, str):
+                        if obs_time.endswith("Z"):
+                            obs_time_parsed = obs_time[:-1] + "+00:00"
+                        else:
+                            obs_time_parsed = obs_time
+                        observation_time = datetime.fromisoformat(obs_time_parsed)
                     else:
-                        obs_time_parsed = obs_time
-                    observation_time = datetime.fromisoformat(obs_time_parsed)
-                except ValueError as err:
+                        _LOGGER.warning(
+                            "Unexpected obsTime type %s for %s, using current time",
+                            type(obs_time).__name__,
+                            data.get("icaoId", "unknown"),
+                        )
+                        observation_time = datetime.now(timezone.utc)
+                except (ValueError, OSError, OverflowError) as err:
                     _LOGGER.warning(
                         "Failed to parse observation time '%s': %s. Using current time.",
                         obs_time, err
