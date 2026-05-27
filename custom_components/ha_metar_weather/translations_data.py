@@ -30,6 +30,11 @@ WEATHER_INTENSITY: Final[Dict[str, Dict[str, str]]] = {
         "heavy": "Сильный",
         "vicinity": "В районе",
     },
+    "fr": {
+        "light": "Légere",
+        "heavy": "Forte",
+        "vicinity": "Au voisinage de",
+    },
 }
 
 # Weather descriptor translations
@@ -64,6 +69,16 @@ WEATHER_DESCRIPTOR: Final[Dict[str, Dict[str, str]]] = {
         "thunderstorm": "Гроза",
         "freezing": "Замерзающий",
     },
+    "fr": {
+        "shallow": "Mince",
+        "partial": "Partiel",
+        "patches": "Bancs",
+        "low_drifting": "Chasse basse",
+        "blowing": "Chasse élevée",
+        "showers": "Averses",
+        "thunderstorm": "Orage",
+        "freezing": "Givrage",
+    },    
 }
 
 # Weather phenomenon translations
@@ -140,6 +155,30 @@ WEATHER_PHENOMENON: Final[Dict[str, Dict[str, str]]] = {
         "sandstorm": "Песчаная буря",
         "duststorm": "Пыльная буря",
     },
+    "fr": {
+        "drizzle": "Bruine",
+        "rain": "Pluie",
+        "snow": "Neige",
+        "snow_grains": "Neige en grains",
+        "ice_crystals": "Givrage",
+        "ice_pellets": "Granules de glace",
+        "hail": "Grêle",
+        "small_hail": "Grésil",
+        "unknown": "Неизвестные осадки",
+        "mist": "Brume",
+        "fog": "Brouillard",
+        "smoke": "Fumée",
+        "volcanic_ash": "Cendre volcanique",
+        "dust": "Poussière généralisée",
+        "sand": "Sable",
+        "haze": "Brume sèche",
+        "spray": "Précipitations",
+        "dust_whirls": "Tornades",
+        "squalls": "Bourrasques",
+        "funnel_cloud": "Trombe",
+        "sandstorm": "Tempête de sable",
+        "duststorm": "Tempête de poussière",
+    },    
 }
 
 # Cloud coverage translations
@@ -174,6 +213,16 @@ CLOUD_COVERAGE_TRANSLATIONS: Final[Dict[str, Dict[str, str]]] = {
         "overcast": "Сплошная облачность (8 окт)",
         "vertical_visibility": "Вертикальная видимость",
     },
+    "fr": {
+        "clear_sky": "Ciel dégagé",
+        "clear": "Clair",
+        "no_significant": "Pas de nuage significatif",
+        "few": "Peu (1-2 oktas)",
+        "scattered": "Epars (3-4 oktas)",
+        "broken": "Fragmenté (5-7 oktas)",
+        "overcast": "Couvert (8 oktas)",
+        "vertical_visibility": "Visibilité verticale",
+    },    
 }
 
 # Runway condition translations
@@ -199,6 +248,13 @@ RUNWAY_CONDITION: Final[Dict[str, Dict[str, str]]] = {
         "friction": "Сцепление",
         "braking": "Торможение",
     },
+    "fr": {
+        "contamination": "Contamination",
+        "coverage": "Couverture",
+        "depth": "Profondeur",
+        "friction": "Friction",
+        "braking": "Action de freinage",
+    },    
 }
 
 # Wind translations
@@ -221,6 +277,12 @@ WIND_TRANSLATIONS: Final[Dict[str, Dict[str, str]]] = {
         "varying_between": "Изменяется между",
         "up_to": "До",
     },
+    "fr": {
+        "from": "Du",
+        "to": "Vers",
+        "varying_between": "Variable entre",
+        "up_to": "Jusqu'a",
+    },    
 }
 
 # State attributes translations
@@ -267,6 +329,20 @@ STATE_ATTRIBUTES: Final[Dict[str, Dict[str, str]]] = {
         "wind_variation_from": "Вариация ветра от",
         "wind_variation_to": "Вариация ветра до",
     },
+    "fr": {
+        "last_update": "Dernière mise à jour",
+        "station": "Station",
+        "station_name": "Nom de la station",
+        "raw_metar": "METAR brut",
+        "min_24h": "24h Minimum",
+        "max_24h": "24h Maximum",
+        "average_24h": "Moyenne à 24H",
+        "trend": "Tendance",
+        "wind_gust": "Rafales",
+        "wind_variable_direction": "Direction du vent variable",
+        "wind_variation_from": "Vent en provenance du",
+        "wind_variation_to": "Vent en direction vers",
+    },    
 }
 
 
@@ -278,7 +354,7 @@ def get_translation(translations: Dict[str, Dict[str, str]], key: str, lang: str
     Args:
         translations: Dictionary of translations by language
         key: The key to translate
-        lang: Language code (en, de, ru)
+        lang: Language code (en, de, ru, fr)
         
     Returns:
         Translated string or the key itself if not found
