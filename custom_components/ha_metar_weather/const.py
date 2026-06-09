@@ -164,109 +164,170 @@ VALUE_RANGES: Final[Dict[str, Tuple[float, float]]] = {
     "cloud_coverage_height": (0.0, 50000.0)  # feet
 }
 
-# Weather codes and descriptions
-WEATHER_PHENOMENA: Final[Dict[str, str]] = {
-    # Intensity
-    '-': 'Light',
-    '+': 'Heavy',
-    'VC': 'Vicinity',
+# METAR code -> canonical, language-independent slug.
+#
+# These maps are the single source of truth for the machine value of a sensor
+# state. The human-readable strings live only in translations/<lang>.json under
+# entity.sensor.<key>.state.<slug> and are rendered per user by the HA frontend.
+# Slugs are stable across languages and across both data sources (issue #3 / the
+# phase-2 localization roadmap in docs/localization-roadmap.md).
 
-    # Descriptors
-    'MI': 'Shallow',
-    'PR': 'Partial',
-    'BC': 'Patches',
-    'DR': 'Low Drifting',
-    'BL': 'Blowing',
-    'SH': 'Shower',
-    'TS': 'Thunderstorm',
-    'FZ': 'Freezing',
-
-    # Precipitation
-    'DZ': 'Drizzle',
-    'RA': 'Rain',
-    'SN': 'Snow',
-    'SG': 'Snow Grains',
-    'IC': 'Ice Crystals',
-    'PL': 'Ice Pellets',
-    'GR': 'Hail',
-    'GS': 'Small Hail',
-    'UP': 'Unknown Precipitation',
-
-    # Obscuration
-    'BR': 'Mist',
-    'FG': 'Fog',
-    'FU': 'Smoke',
-    'VA': 'Volcanic Ash',
-    'DU': 'Widespread Dust',
-    'SA': 'Sand',
-    'HZ': 'Haze',
-    'PY': 'Spray',
-
-    # Other
-    'PO': 'Dust/Sand Whirls',
-    'SQ': 'Squalls',
-    'FC': 'Funnel Cloud',
-    'SS': 'Sandstorm',
-    'DS': 'Duststorm'
+# Weather intensity prefixes (moderate intensity has no marker -> no slug).
+WEATHER_INTENSITY_CODES: Final[Dict[str, str]] = {
+    "-": "light",
+    "+": "heavy",
+    "VC": "vicinity",
 }
 
-# Cloud coverage descriptions
+# Weather descriptors.
+WEATHER_DESCRIPTOR_CODES: Final[Dict[str, str]] = {
+    "MI": "shallow",
+    "PR": "partial",
+    "BC": "patches",
+    "DR": "low_drifting",
+    "BL": "blowing",
+    "SH": "showers",
+    "TS": "thunderstorm",
+    "FZ": "freezing",
+}
+
+# Weather phenomena (precipitation / obscuration / other).
+WEATHER_PHENOMENON_CODES: Final[Dict[str, str]] = {
+    "DZ": "drizzle",
+    "RA": "rain",
+    "SN": "snow",
+    "SG": "snow_grains",
+    "IC": "ice_crystals",
+    "PL": "ice_pellets",
+    "GR": "hail",
+    "GS": "small_hail",
+    "UP": "unknown",
+    "BR": "mist",
+    "FG": "fog",
+    "FU": "smoke",
+    "VA": "volcanic_ash",
+    "DU": "dust",
+    "SA": "sand",
+    "HZ": "haze",
+    "PY": "spray",
+    "PO": "dust_whirls",
+    "SQ": "squalls",
+    "FC": "funnel_cloud",
+    "SS": "sandstorm",
+    "DS": "duststorm",
+}
+
+# Recent (RE-prefixed) weather phenomena that the parser recognises explicitly.
+RECENT_WEATHER_CODES: Final[Dict[str, str]] = {
+    "RESN": "snow",
+    "RERA": "rain",
+    "REDZ": "drizzle",
+    "RETS": "thunderstorm",
+    "REFZRA": "freezing_rain",
+    "REPL": "ice_pellets",
+    "REGR": "hail",
+    "REGS": "small_hail",
+    "RESH": "showers",
+    "REBLSN": "blowing_snow",
+    "REFG": "fog",
+}
+
+# Cloud coverage code -> slug.
 CLOUD_COVERAGE: Final[Dict[str, str]] = {
-    "SKC": "Clear sky",
-    "CLR": "No clouds below 12,000ft",
-    "NSC": "No significant clouds",
-    "NCD": "No clouds detected",
-    "CAVOK": "Ceiling and visibility OK",
-    "FEW": "Few (1-2 oktas)",
-    "SCT": "Scattered (3-4 oktas)",
-    "BKN": "Broken (5-7 oktas)",
-    "OVC": "Overcast (8 oktas)",
-    "VV": "Vertical visibility"
+    "SKC": "clear_sky",
+    "CLR": "clr",
+    "NSC": "no_significant",
+    "NCD": "ncd",
+    "CAVOK": "cavok",
+    "FEW": "few",
+    "SCT": "scattered",
+    "BKN": "broken",
+    "OVC": "overcast",
+    "VV": "vertical_visibility",
 }
 
-# Cloud types
+# Closed vocabulary for the cloud_coverage_state ENUM sensor. "clear" is emitted
+# when no layers are present.
+CLOUD_COVERAGE_OPTIONS: Final[list[str]] = [
+    "clear",
+    "clear_sky",
+    "clr",
+    "no_significant",
+    "ncd",
+    "cavok",
+    "few",
+    "scattered",
+    "broken",
+    "overcast",
+    "vertical_visibility",
+]
+
+# Cloud type code -> slug.
 CLOUD_TYPES: Final[Dict[str, str]] = {
-    "CB": "Cumulonimbus",
-    "TCU": "Towering Cumulus",
-    "CI": "Cirrus",
-    "CS": "Cirrostratus",
-    "CC": "Cirrocumulus",
-    "AS": "Altostratus",
-    "AC": "Altocumulus",
-    "NS": "Nimbostratus",
-    "SC": "Stratocumulus",
-    "ST": "Stratus",
-    "CU": "Cumulus"
+    "CB": "cumulonimbus",
+    "TCU": "towering_cumulus",
+    "CI": "cirrus",
+    "CS": "cirrostratus",
+    "CC": "cirrocumulus",
+    "AS": "altostratus",
+    "AC": "altocumulus",
+    "NS": "nimbostratus",
+    "SC": "stratocumulus",
+    "ST": "stratus",
+    "CU": "cumulus",
 }
 
-# Runway condition codes
+# Closed vocabulary for the cloud_coverage_type ENUM sensor. "none" when absent.
+CLOUD_TYPE_OPTIONS: Final[list[str]] = ["none", *CLOUD_TYPES.values()]
+
+# Runway surface code -> slug.
 RUNWAY_SURFACE_CODES: Final[Dict[str, str]] = {
-    "0": "Clear and dry",
-    "1": "Damp",
-    "2": "Wet or water patches",
-    "3": "Rime or frost",
-    "4": "Dry snow",
-    "5": "Wet snow",
-    "6": "Slush",
-    "7": "Ice",
-    "8": "Compacted snow",
-    "9": "Frozen ruts or ridges",
-    "/": "Not reported"
+    "0": "clear_and_dry",
+    "1": "damp",
+    "2": "wet",
+    "3": "rime_or_frost",
+    "4": "dry_snow",
+    "5": "wet_snow",
+    "6": "slush",
+    "7": "ice",
+    "8": "compacted_snow",
+    "9": "frozen_ruts",
+    "/": "not_reported",
 }
 
+# Closed vocabulary for runway surface (plus special raw groups + fallback).
+RUNWAY_SURFACE_OPTIONS: Final[list[str]] = [
+    *dict.fromkeys(RUNWAY_SURFACE_CODES.values()),
+    "snow_closed",
+    "cleared",
+    "unknown",
+]
+
+# Runway coverage code -> slug.
 RUNWAY_COVERAGE_CODES: Final[Dict[str, str]] = {
-    "0": "Clear and dry (0%)",
-    "1": "Less than 10%",
-    "2": "11-25%",
-    "3": "26-50%",
-    "4": "51-75%",
-    "5": "26-50%",  # Alternative code used in some regions
-    "6": "51-75%",  # Alternative code used in some regions
-    "7": "76-90%",
-    "8": "91-100%",
-    "9": "51-100%",  # Generic 51%+ coverage
-    "/": "Not reported"
+    "0": "cov_0",
+    "1": "cov_lt10",
+    "2": "cov_11_25",
+    "3": "cov_26_50",
+    "4": "cov_51_75",
+    "5": "cov_26_50",  # Alternative code used in some regions
+    "6": "cov_51_75",  # Alternative code used in some regions
+    "7": "cov_76_90",
+    "8": "cov_91_100",
+    "9": "cov_51_100",  # Generic 51%+ coverage
+    "/": "not_reported",
 }
+
+RUNWAY_COVERAGE_OPTIONS: Final[list[str]] = [
+    *dict.fromkeys(RUNWAY_COVERAGE_CODES.values()),
+    "unknown",
+]
+
+# Report-type ENUM (auto vs manual observation).
+REPORT_TYPE_OPTIONS: Final[list[str]] = ["auto", "manual"]
+
+# CAVOK ENUM (Ceiling And Visibility OK).
+CAVOK_OPTIONS: Final[list[str]] = ["yes", "no"]
 
 # Unit display formats
 UNIT_FORMATS: Final[Dict[str, str]] = {

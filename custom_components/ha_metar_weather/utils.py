@@ -93,8 +93,8 @@ def parse_runway_states_from_raw(raw_metar: str) -> Dict[str, Dict[str, Any]]:
 
             if conditions == 'SNOCLO':
                 state = {
-                    "surface": "Snow closed",
-                    "coverage": "100%",
+                    "surface": "snow_closed",
+                    "coverage": "cov_91_100",
                     "depth": 0,
                     "friction": None,
                     "raw": conditions
@@ -109,16 +109,16 @@ def parse_runway_states_from_raw(raw_metar: str) -> Dict[str, Dict[str, Any]]:
                     except ValueError:
                         friction = None
                 state = {
-                    "surface": "Clear and dry",
-                    "coverage": "0%",
+                    "surface": "cleared",
+                    "coverage": "cov_0",
                     "depth": 0,
                     "friction": friction,
                     "raw": conditions
                 }
             elif len(conditions) >= 4 and conditions[:4].isalpha():
-                # Handle 4-letter codes like SNOW55, SAND55, etc.
-                # These are non-standard but used in some regions
-                surface_code = conditions[:4]
+                # Non-standard 4-letter codes (SNOW55, SAND55, ...) used in some
+                # regions. Not in the standard vocabulary -> map to 'unknown';
+                # the original code is preserved in "raw".
                 friction_code = conditions[4:6] if len(conditions) >= 6 else '//'
                 if friction_code == '//':
                     friction = None
@@ -128,8 +128,8 @@ def parse_runway_states_from_raw(raw_metar: str) -> Dict[str, Dict[str, Any]]:
                     except ValueError:
                         friction = None
                 state = {
-                    "surface": surface_code.capitalize(),  # e.g., "SNOW" -> "Snow"
-                    "coverage": "Unknown",  # Not specified in 4-letter format
+                    "surface": "unknown",
+                    "coverage": "unknown",
                     "depth": 0,
                     "friction": friction,
                     "raw": conditions
@@ -155,8 +155,8 @@ def parse_runway_states_from_raw(raw_metar: str) -> Dict[str, Dict[str, Any]]:
                         depth = 0
 
                 state = {
-                    "surface": RUNWAY_SURFACE_CODES.get(conditions[0], "Unknown"),
-                    "coverage": RUNWAY_COVERAGE_CODES.get(conditions[1], "Unknown"),
+                    "surface": RUNWAY_SURFACE_CODES.get(conditions[0], "unknown"),
+                    "coverage": RUNWAY_COVERAGE_CODES.get(conditions[1], "unknown"),
                     "depth": depth,
                     "friction": friction,
                     "raw": conditions
