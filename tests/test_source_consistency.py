@@ -58,15 +58,18 @@ def test_textual_fields_identical_across_sources():
     assert merged["cloud_coverage_state"] == "few"
 
 
-def test_numeric_fields_come_from_awc():
-    """AWC numerics are authoritative (they handle 6+, hPa/inHg, epoch, etc.)."""
+def test_temperature_dew_point_come_from_awc():
+    """Temp/dew stay AWC-first: AWC may carry T-group decimals the raw main
+    group lacks (22.2 vs 22). Parser-first fields are covered by
+    test_merge_policy.py (issue #8)."""
     parsed = MetarParser(RAW).get_parsed_data()
-    merged = merge_awc_numerics(parsed, AWC_META)
+    awc = dict(AWC_META)
+    awc["temperature"] = 22.2
+    awc["dew_point"] = 17.8
+    merged = merge_awc_numerics(parsed, awc)
 
-    assert merged["pressure"] == 1013.0  # AWC value, not the inHg-from-raw value
-    assert merged["visibility"] == 16.1
-    assert merged["temperature"] == 22.0
-    assert merged["humidity"] == 78.0
+    assert merged["temperature"] == 22.2
+    assert merged["dew_point"] == 17.8
 
 
 def test_station_name_and_time_preserved_from_awc():
@@ -94,11 +97,11 @@ def test_out_of_range_awc_numeric_falls_back_to_parser():
     """
     parsed = MetarParser(RAW).get_parsed_data()
     bad_awc = dict(AWC_META)
-    bad_awc["pressure"] = 5000.0  # absurd; outside VALUE_RANGES (900-1100 hPa)
+    bad_awc["temperature"] = 999.0  # absurd; outside VALUE_RANGES (-90..60)
     merged = merge_awc_numerics(parsed, bad_awc)
 
-    assert merged["pressure"] == parsed["pressure"]
-    assert merged["pressure"] != 5000.0
+    assert merged["temperature"] == parsed["temperature"]
+    assert merged["temperature"] != 999.0
 
 
 def test_non_numeric_awc_value_falls_back_to_parser():
@@ -149,6 +152,8 @@ def test_real_awc_path_matches_parser():
     assert merged["weather"] == "heavy_thunderstorm_rain"
     assert merged["pressure"] == 1009.0
     assert merged["station_name"] == "Sheremetyevo"
+    # Issue #8 regression: raw 9999 (10 km) must survive AWC's visib "6+"
+    assert merged["visibility"] == 10.0
 
 
 def test_merge_does_not_mutate_inputs():

@@ -152,3 +152,39 @@ def test_station_name_falls_back_to_icao():
     """
     data = parse("KJFK 121651Z 18010KT 10SM FEW020 22/18 A2992")
     assert data["station_name"] == "KJFK"
+
+
+def test_temp_dew_survives_fractional_visibility_token():
+    """Regression: "1/2SM" splits to "1"/"2SM" and used to abort the whole
+    temp/dew scan via ValueError, losing the real 12/12 group."""
+    data = parse("KLAX 121651Z 18005KT 1/2SM FG 12/12 A3001")
+    assert data["temperature"] == pytest.approx(12.0)
+    assert data["dew_point"] == pytest.approx(12.0)
+
+
+def test_temp_dew_survives_less_than_fraction_token():
+    data = parse("KLAX 121651Z 18005KT M1/4SM FG 12/12 A3001")
+    assert data["temperature"] == pytest.approx(12.0)
+    assert data["dew_point"] == pytest.approx(12.0)
+
+
+def test_visibility_less_than_fraction():
+    """M1/4SM means "less than 1/4 SM"; report the boundary value."""
+    data = parse("KLAX 121651Z 18005KT M1/4SM FG 12/12 A3001")
+    assert data["visibility"] == pytest.approx(0.4, abs=0.05)
+
+
+def test_visibility_p6sm():
+    data = parse("KJFK 121651Z 18010KT P6SM FEW020 22/18 A2992")
+    assert data["visibility"] == pytest.approx(9.7, abs=0.1)
+
+
+def test_visibility_9999_is_10_km():
+    data = parse("UUEE 121630Z 24008MPS 9999 BKN040 18/12 Q1009 NOSIG")
+    assert data["visibility"] == pytest.approx(10.0)
+
+
+def test_wind_mps_exact_kmh():
+    """8 m/s = 28.8 km/h exactly; must not be quantized through knots."""
+    data = parse("UUEE 121630Z 24008MPS 9999 BKN040 18/12 Q1009 NOSIG")
+    assert data["wind_speed"] == pytest.approx(28.8)

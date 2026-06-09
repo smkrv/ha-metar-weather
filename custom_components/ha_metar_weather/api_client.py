@@ -28,6 +28,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .awc_client import AWCApiClient, AWCApiError
 from .metar_parser import MetarParser
+from .utils import calculate_humidity
 from .const import (
     VALUE_RANGES,
     NUMERIC_PRECISION,
@@ -37,13 +38,21 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-# Numeric fields where AWC's JSON values are authoritative. The AWC API handles
-# edge formats the raw regex parser does not ("6+"/"P6SM" visibility, hPa vs inHg
-# altimeter auto-detection, epoch observation time), so we trust its numbers.
-_AWC_NUMERIC_KEYS: tuple[str, ...] = (
+# Numeric fields where AWC's JSON is authoritative: AWC is never worse than
+# the whole degrees of the raw 16/06 group and may carry T-group decimals the
+# parser does not read.
+_AWC_AUTHORITATIVE_KEYS: tuple[str, ...] = (
     "temperature",
     "dew_point",
-    "humidity",
+)
+
+# Numeric fields where the raw METAR is exact while AWC's JSON is quantized or
+# capped: visibility in statute miles ("6+" turns 9999/CAVOK = 10 km into
+# 9.7 km - issue #8), winds in whole knots (lossy for MPS stations), altimeter
+# as int hPa (lossy for US A-group reports). The parser value wins; AWC only
+# fills gaps: a visibility group missing from the report entirely, or a
+# garbled/out-of-range token the parser rejected.
+_AWC_FALLBACK_KEYS: tuple[str, ...] = (
     "wind_speed",
     "wind_direction",
     "wind_gust",
@@ -52,15 +61,28 @@ _AWC_NUMERIC_KEYS: tuple[str, ...] = (
 )
 
 
+def _is_usable(key: str, value: Any) -> bool:
+    """True if the value would survive the VALUE_RANGES check for this key."""
+    value_range = VALUE_RANGES.get(key)
+    if value_range is None:
+        return True
+    try:
+        return value_range[0] <= float(value) <= value_range[1]
+    except (ValueError, TypeError):
+        return False
+
+
 def merge_awc_numerics(
     parsed: Dict[str, Any], awc_meta: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Overlay AWC's authoritative numerics onto parser-derived textual data.
+    """Merge AWC numerics into parser-derived data.
 
     Textual fields (weather, clouds, trend, runway states, cavok/auto) come from
-    the shared :class:`MetarParser` so both data sources agree (issue #3). Numeric
-    fields, the real station name and the observation time are taken from AWC when
-    present. Inputs are not mutated.
+    the shared :class:`MetarParser` so both data sources agree (issue #3).
+    Temperature/dew point are taken from AWC when present; the remaining numerics
+    keep the exact parser value and use AWC only as a fallback (issue #8).
+    Humidity is recomputed from the merged temperature/dew point pair. The real
+    station name and the observation time come from AWC. Inputs are not mutated.
 
     Args:
         parsed: Output of ``MetarParser(raw).get_parsed_data()``.
@@ -71,33 +93,35 @@ def merge_awc_numerics(
     """
     merged = deepcopy(parsed)
 
-    for key in _AWC_NUMERIC_KEYS:
+    for key in _AWC_AUTHORITATIVE_KEYS + _AWC_FALLBACK_KEYS:
         value = awc_meta.get(key)
         if value is None:
             continue
+        if key in _AWC_FALLBACK_KEYS:
+            # A parser value the later range check would null anyway counts
+            # as absent - let a valid AWC value fill it (e.g. a garbled
+            # Q-group misread as 10133 hPa).
+            parser_value = merged.get(key)
+            if parser_value is not None and _is_usable(key, parser_value):
+                continue
         # Only overlay an AWC numeric that is itself valid. A corrupt/out-of-range
         # AWC value must not clobber the parser's value (derived from the same raw
         # METAR), which would otherwise be nulled by the later range check.
-        value_range = VALUE_RANGES.get(key)
-        if value_range is not None:
-            try:
-                if not value_range[0] <= float(value) <= value_range[1]:
-                    _LOGGER.warning(
-                        "AWC %s=%s out of range for %s; keeping parser value",
-                        key,
-                        value,
-                        awc_meta.get("station_name") or "station",
-                    )
-                    continue
-            except (ValueError, TypeError):
-                _LOGGER.warning(
-                    "AWC %s=%r is not numeric for %s; keeping parser value",
-                    key,
-                    value,
-                    awc_meta.get("station_name") or "station",
-                )
-                continue
+        if not _is_usable(key, value):
+            _LOGGER.warning(
+                "AWC %s=%r out of range or not numeric for %s; keeping parser value",
+                key,
+                value,
+                awc_meta.get("station_name") or "station",
+            )
+            continue
         merged[key] = value
+
+    # Humidity is derived, not observed: keep it consistent with whichever
+    # temperature/dew point pair won the merge.
+    humidity = calculate_humidity(merged.get("temperature"), merged.get("dew_point"))
+    if humidity is not None:
+        merged["humidity"] = humidity
 
     # The variable wind direction *range* (e.g. "180°-240°") only exists in the
     # raw string, so keep the parser value; fall back to AWC's "VRB" marker only
