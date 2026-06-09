@@ -468,9 +468,10 @@ class MetarParser:
                         _LOGGER.debug("Parsed SM visibility: %s SM = %s km", vis_miles, visibility)
                         break
 
-                    # Check for fractional SM format (e.g., 1/2SM, 1/4SM, 3/4SM)
+                    # Check for fractional SM format (e.g., 1/2SM, M1/4SM, 3/4SM).
+                    # M prefix = "less than"; report the boundary value.
                     # Also handles mixed fractions where previous part is whole number
-                    frac_sm_match = re.match(r'^(\d+)/(\d+)SM$', part)
+                    frac_sm_match = re.match(r'^M?(\d+)/(\d+)SM$', part)
                     if frac_sm_match:
                         numerator = float(frac_sm_match.group(1))
                         denominator = float(frac_sm_match.group(2))
@@ -747,8 +748,14 @@ class MetarParser:
                     if len(temp_str) > 3 or len(dew_str) > 3:
                         continue
 
-                    temp_val = float(temp_str.replace('M', '-'))
-                    dew_val = float(dew_str.replace('M', '-'))
+                    try:
+                        temp_val = float(temp_str.replace('M', '-'))
+                        dew_val = float(dew_str.replace('M', '-'))
+                    except ValueError:
+                        # Token merely looked like temp/dew: fractional
+                        # visibility "1/2SM" splits to "1"/"2SM". Keep
+                        # scanning for the real group.
+                        continue
 
                     # Validate value ranges
                     if not -100 <= temp_val <= 60:

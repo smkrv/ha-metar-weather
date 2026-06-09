@@ -193,8 +193,13 @@ class AWCApiClient:
             if wind_direction == "VRB" or wind_direction is None:
                 wind_variable = "VRB" if wind_direction == "VRB" else None
                 wind_direction = None
+            elif wind_direction == 0 and not data.get("wspd"):
+                # Calm wind (00000KT): AWC sends wdir=0/wspd=0, but direction
+                # has no meaning - mirror the parser, which yields None.
+                wind_direction = None
             else:
-                wind_direction = float(wind_direction) if wind_direction else None
+                # Not None here; plain float() keeps a valid 0 (north) intact
+                wind_direction = float(wind_direction)
 
             # Convert wind speed from knots to km/h
             if wind_speed is not None:
