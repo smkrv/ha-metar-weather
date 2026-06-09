@@ -489,6 +489,22 @@
           "snow_closed": "Closed due to snow",
           "cleared": "Cleared",
           "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "coverage": {
+            "state": {
+              "cov_0": "0%",
+              "cov_lt10": "Less than 10%",
+              "cov_11_25": "11-25%",
+              "cov_26_50": "26-50%",
+              "cov_51_75": "51-75%",
+              "cov_76_90": "76-90%",
+              "cov_91_100": "91-100%",
+              "cov_51_100": "51-100%",
+              "not_reported": "Not reported",
+              "unknown": "Unknown"
+            }
+          }
         }
       }
     }

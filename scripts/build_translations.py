@@ -66,6 +66,19 @@ RUNWAY_SURFACE = {
     "unknown": {"en": "Unknown", "de": "Unbekannt", "ru": "Неизвестно", "fr": "Inconnue"},
 }
 
+RUNWAY_COVERAGE = {
+    "cov_0": {"en": "0%", "de": "0%", "ru": "0%", "fr": "0%"},
+    "cov_lt10": {"en": "Less than 10%", "de": "Weniger als 10%", "ru": "Менее 10%", "fr": "Moins de 10%"},
+    "cov_11_25": {"en": "11-25%", "de": "11-25%", "ru": "11-25%", "fr": "11-25%"},
+    "cov_26_50": {"en": "26-50%", "de": "26-50%", "ru": "26-50%", "fr": "26-50%"},
+    "cov_51_75": {"en": "51-75%", "de": "51-75%", "ru": "51-75%", "fr": "51-75%"},
+    "cov_76_90": {"en": "76-90%", "de": "76-90%", "ru": "76-90%", "fr": "76-90%"},
+    "cov_91_100": {"en": "91-100%", "de": "91-100%", "ru": "91-100%", "fr": "91-100%"},
+    "cov_51_100": {"en": "51-100%", "de": "51-100%", "ru": "51-100%", "fr": "51-100%"},
+    "not_reported": {"en": "Not reported", "de": "Nicht gemeldet", "ru": "Не сообщается", "fr": "Non communiqué"},
+    "unknown": {"en": "Unknown", "de": "Unbekannt", "ru": "Неизвестно", "fr": "Inconnue"},
+}
+
 REPORT_TYPE = {
     "auto": {"en": "Automated report", "de": "Automatischer Bericht", "ru": "Автоматический отчёт", "fr": "Rapport automatique"},
     "manual": {"en": "Manual report", "de": "Manueller Bericht", "ru": "Ручной отчёт", "fr": "Rapport manuel"},
@@ -229,7 +242,10 @@ def build_entity_sensor(lang: str, weather: dict) -> dict:
     sensor["cloud_coverage_type"] = {"state": _states(CLOUD_TYPE, lang)}
     sensor["report_type"] = {"state": _states(REPORT_TYPE, lang)}
     sensor["cavok"] = {"state": _states(CAVOK, lang)}
-    sensor["runway_state"] = {"state": _states(RUNWAY_SURFACE, lang)}
+    sensor["runway_state"] = {
+        "state": _states(RUNWAY_SURFACE, lang),
+        "state_attributes": {"coverage": {"state": _states(RUNWAY_COVERAGE, lang)}},
+    }
     return sensor
 
 
