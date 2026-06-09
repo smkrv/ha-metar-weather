@@ -6,7 +6,7 @@ Fallback source: AVWX library (NOAA FTP)
 
 Both sources use NOAA data, ensuring consistency and reliability.
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @github: https://github.com/smkrv/ha-metar-weather
 """
 from __future__ import annotations

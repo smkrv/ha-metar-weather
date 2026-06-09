@@ -6,7 +6,7 @@ This is the primary data source for METAR data.
 
 API Documentation: https://aviationweather.gov/data/api/
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @github: https://github.com/smkrv/ha-metar-weather
 """
 from __future__ import annotations

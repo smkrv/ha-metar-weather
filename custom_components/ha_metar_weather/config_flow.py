@@ -1,7 +1,7 @@
 """
 Config flow for METAR Weather integration.
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @author: SMKRV
 @github: https://github.com/smkrv/ha-metar-weather
 @source: https://github.com/smkrv/ha-metar-weather
