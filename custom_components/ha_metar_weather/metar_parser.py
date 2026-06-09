@@ -16,7 +16,10 @@ from dataclasses import dataclass
 from .const import (
     CLOUD_COVERAGE,
     CLOUD_TYPES,
-    WEATHER_PHENOMENA,
+    WEATHER_INTENSITY_CODES,
+    WEATHER_DESCRIPTOR_CODES,
+    WEATHER_PHENOMENON_CODES,
+    RECENT_WEATHER_CODES,
     RUNWAY_SURFACE_CODES,
     RUNWAY_COVERAGE_CODES,
     KNOTS_TO_KMH,
@@ -64,7 +67,9 @@ class MetarParser:
 
     CLOUD_COVERAGE = CLOUD_COVERAGE
     CLOUD_TYPES = CLOUD_TYPES
-    WEATHER_PHENOMENA = WEATHER_PHENOMENA
+    WEATHER_INTENSITY_CODES = WEATHER_INTENSITY_CODES
+    WEATHER_DESCRIPTOR_CODES = WEATHER_DESCRIPTOR_CODES
+    WEATHER_PHENOMENON_CODES = WEATHER_PHENOMENON_CODES
     RUNWAY_SURFACE_CODES = RUNWAY_SURFACE_CODES
     RUNWAY_COVERAGE_CODES = RUNWAY_COVERAGE_CODES
 
@@ -144,18 +149,18 @@ class MetarParser:
                     if height_str == '///':
                         # VV/// means vertical visibility cannot be determined
                         layer = CloudLayer(
-                            coverage="Vertical Visibility",
+                            coverage="vertical_visibility",
                             height=None,
-                            type="Obscured (undefined)"
+                            type=None
                         )
                         layers.append(layer)
                         _LOGGER.debug("Parsed vertical visibility: undefined (VV///)")
                     elif height_str.isdigit():
                         height = int(height_str) * 100  # VV002 = 200 feet
                         layer = CloudLayer(
-                            coverage="Vertical Visibility",
+                            coverage="vertical_visibility",
                             height=height,
-                            type="Obscured"
+                            type=None
                         )
                         layers.append(layer)
                         _LOGGER.debug("Parsed vertical visibility: %s feet", height)
@@ -194,124 +199,117 @@ class MetarParser:
         }
         return self._runway_states_cache
 
-    def parse_weather(self) -> str:
-        """Parse weather conditions."""
-        try:
-            if "CAVOK" in self.raw_metar:
-                return "CAVOK"
+    def parse_weather_groups(self) -> List[Dict[str, Any]]:
+        """Parse weather phenomena into structured groups of canonical slugs.
 
-            weather_codes = []
+        Each group is ``{"intensity": slug|None, "descriptor": slug|None,
+        "phenomena": [slug, ...], "recent": bool, "raw": str}``. Current-condition
+        groups come first, recent (RE-prefixed) groups last. CAVOK yields no
+        groups (no significant weather).
+        """
+        groups: List[Dict[str, Any]] = []
+        try:
             parts = self.raw_metar.split()
 
-            # Complex weather phenomena can consist of multiple parts
+            if "CAVOK" in parts:
+                return []
+
             for original_part in parts:
-                # Stop processing at RMK (remarks section)
-                if original_part == 'RMK':
+                # Stop at remarks / trend sections (not current conditions).
+                if original_part in ('RMK', 'TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40'):
                     break
 
-                # Skip known non-weather codes
-                # Note: Runway conditions (R24L/550362) are skipped by '/' check
-                # DO NOT skip 'R' prefix - it would exclude RA (rain), RADZ, etc.
+                # Skip non-weather tokens. Runway groups (R24L/550362) are caught
+                # by the '/' check; do NOT skip a leading 'R' (RA = rain).
                 if (original_part.endswith('KT') or original_part.endswith('MPS') or
-                    '/' in original_part or original_part.startswith('Q') or
-                    original_part.isdigit() or
-                    original_part in ['NOSIG', 'CAVOK']):
+                        '/' in original_part or original_part.startswith('Q') or
+                        original_part.isdigit() or
+                        original_part in ('NOSIG', 'CAVOK')):
                     continue
-
-                # Skip altimeter settings (A followed by 4 digits, e.g., A3012)
                 if (original_part.startswith('A') and len(original_part) == 5 and
-                    original_part[1:].isdigit()):
+                        original_part[1:].isdigit()):
+                    continue
+                if original_part in ('TL', 'AT', 'SKC', 'CLR', 'NSC', 'NCD', 'AUTO', 'COR'):
                     continue
 
-                # Stop at trend/forecast sections - these are not current conditions
-                if original_part in ('TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40'):
-                    break
+                group = self._parse_weather_group(original_part)
+                if group and group not in groups:
+                    groups.append(group)
 
-                # Skip non-weather markers
-                if original_part in ['TL', 'AT', 'SKC', 'CLR', 'NSC', 'NCD', 'AUTO', 'COR']:
-                    continue
+            # Recent weather (RE-prefixed) - exact token match.
+            for code, slug in RECENT_WEATHER_CODES.items():
+                if code in parts:
+                    groups.append({
+                        "intensity": None,
+                        "descriptor": None,
+                        "phenomena": [slug],
+                        "recent": True,
+                        "raw": code,
+                    })
 
-                weather = ''
-                intensity = ''
-                descriptor = ''
-
-                # Use working copy to avoid modifying loop variable
-                current_part = original_part
-
-                # Check intensity
-                if current_part.startswith(('-', '+')):
-                    intensity = self.WEATHER_PHENOMENA.get(current_part[0], '')
-                    current_part = current_part[1:]
-                elif current_part.startswith('VC'):
-                    intensity = self.WEATHER_PHENOMENA['VC']
-                    current_part = current_part[2:]
-
-                # Known descriptors (only these can be descriptors, not precipitation/obscuration)
-                DESCRIPTORS = {'MI', 'PR', 'BC', 'DR', 'BL', 'SH', 'TS', 'FZ'}
-
-                # Parse all 2-letter groups in the weather code
-                phenomena_parts = []
-                remaining = current_part
-
-                while len(remaining) >= 2:
-                    code = remaining[:2]
-                    if code in DESCRIPTORS:
-                        # It's a descriptor
-                        descriptor = self.WEATHER_PHENOMENA.get(code, code)
-                        remaining = remaining[2:]
-                    elif code in self.WEATHER_PHENOMENA:
-                        # It's a precipitation/obscuration/other phenomenon
-                        phenomena_parts.append(self.WEATHER_PHENOMENA[code])
-                        remaining = remaining[2:]
-                    else:
-                        # Unknown code, skip
-                        break
-
-                # Combine descriptor with phenomena
-                if phenomena_parts:
-                    weather = ' '.join(phenomena_parts)
-
-                # Assemble full weather description
-                if intensity or descriptor or weather:
-                    full_weather = ' '.join(filter(None, [intensity, descriptor, weather]))
-                    if full_weather and full_weather not in weather_codes:
-                        weather_codes.append(full_weather)
-
-            # Handle special cases - recent weather (RE prefix)
-            if 'RESN' in parts:
-                weather_codes.append('Recent Snow')
-            if 'RETS' in parts:
-                weather_codes.append('Recent Thunderstorm')
-            if 'RERA' in parts:
-                weather_codes.append('Recent Rain')
-            if 'REDZ' in parts:
-                weather_codes.append('Recent Drizzle')
-            if 'REFZRA' in parts:
-                weather_codes.append('Recent Freezing Rain')
-            if 'REPL' in parts:
-                weather_codes.append('Recent Ice Pellets')
-            if 'REGR' in parts:
-                weather_codes.append('Recent Hail')
-            if 'REGS' in parts:
-                weather_codes.append('Recent Small Hail')
-            if 'RESH' in parts:
-                weather_codes.append('Recent Showers')
-            if 'REBLSN' in parts:
-                weather_codes.append('Recent Blowing Snow')
-            if 'REFG' in parts:
-                weather_codes.append('Recent Fog')
-
-            _LOGGER.debug(
-                "Parsed weather phenomena: %s from METAR: %s",
-                weather_codes,
-                self.raw_metar
-            )
-
-            return ', '.join(weather_codes) if weather_codes else "Clear"
+            _LOGGER.debug("Parsed weather groups: %s from METAR: %s", groups, self.raw_metar)
+            return groups
 
         except Exception as err:
             _LOGGER.error("Error parsing weather conditions: %s", err)
-            return "Clear"
+            return []
+
+    def _parse_weather_group(self, part: str) -> Optional[Dict[str, Any]]:
+        """Parse a single weather group token into canonical slugs."""
+        intensity: Optional[str] = None
+        descriptor: Optional[str] = None
+        phenomena: List[str] = []
+
+        remaining = part
+        if remaining.startswith(('-', '+')):
+            intensity = self.WEATHER_INTENSITY_CODES.get(remaining[0])
+            remaining = remaining[1:]
+        elif remaining.startswith('VC'):
+            intensity = self.WEATHER_INTENSITY_CODES.get('VC')
+            remaining = remaining[2:]
+
+        while len(remaining) >= 2:
+            code = remaining[:2]
+            if code in self.WEATHER_DESCRIPTOR_CODES:
+                descriptor = self.WEATHER_DESCRIPTOR_CODES[code]
+                remaining = remaining[2:]
+            elif code in self.WEATHER_PHENOMENON_CODES:
+                phenomena.append(self.WEATHER_PHENOMENON_CODES[code])
+                remaining = remaining[2:]
+            else:
+                # Unknown trailing code - stop parsing this group.
+                break
+
+        if not (intensity or descriptor or phenomena):
+            return None
+
+        return {
+            "intensity": intensity,
+            "descriptor": descriptor,
+            "phenomena": phenomena,
+            "recent": False,
+            "raw": part,
+        }
+
+    def parse_weather(self) -> str:
+        """Canonical weather slug for the sensor state.
+
+        Composes intensity / descriptor / phenomena slugs in a fixed order joined
+        by '_' (e.g. 'heavy_thunderstorm_rain'); 'clear' when there is no weather.
+        Multiple groups are joined by '_'; recent groups are prefixed 'recent'.
+        The frontend localizes this slug via translations/<lang>.json; unknown
+        combinations render as the raw slug (no crash - the sensor is not an ENUM).
+        """
+        tokens: List[str] = []
+        for group in self.parse_weather_groups():
+            if group.get("recent"):
+                tokens.append("recent")
+            if group.get("intensity"):
+                tokens.append(group["intensity"])
+            if group.get("descriptor"):
+                tokens.append(group["descriptor"])
+            tokens.extend(group.get("phenomena", []))
+        return "_".join(tokens) if tokens else "clear"
 
     def parse_trend(self) -> Optional[str]:
         """Parse the trend/forecast group from the raw METAR.
@@ -324,9 +322,9 @@ class MetarParser:
             # TEMPO/BECMG token inside RMK is not mistaken for a trend.
             body = re.split(r'\bRMK\b', self.raw_metar)[0]
 
-            # NOSIG (No Significant Change)
+            # NOSIG (No Significant Change) - kept as the raw, language-neutral code.
             if 'NOSIG' in body:
-                return "No significant change"
+                return "NOSIG"
 
             # TEMPO / BECMG forecast segment - return from the keyword to the end
             match = re.search(r'\b(?:TEMPO|BECMG)\b', body)
@@ -341,15 +339,15 @@ class MetarParser:
             return None
 
     def parse_cloud_coverage(self) -> str:
-        """Parse cloud coverage state."""
+        """Parse cloud coverage state as a slug ('clear' when no layers)."""
         try:
             clouds = self.parse_cloud_layers()
             if not clouds:
-                return "Clear"
+                return "clear"
             return clouds[0].coverage
         except Exception as err:
             _LOGGER.error("Error parsing cloud coverage: %s", err)
-            return "Clear"
+            return "clear"
 
     def parse_cloud_height(self) -> Optional[int]:
         """Parse cloud height."""
@@ -363,15 +361,15 @@ class MetarParser:
             return None
 
     def parse_cloud_type(self) -> str:
-        """Parse cloud type."""
+        """Parse cloud type as a slug ('none' when absent)."""
         try:
             clouds = self.parse_cloud_layers()
             if not clouds or not clouds[0].type:
-                return "N/A"
+                return "none"
             return clouds[0].type
         except Exception as err:
             _LOGGER.error("Error parsing cloud type: %s", err)
-            return "N/A"
+            return "none"
 
     def get_parsed_data(self) -> Dict[str, Any]:
         """Return complete parsed METAR data."""
@@ -529,6 +527,7 @@ class MetarParser:
             "cloud_coverage_height": self.parse_cloud_height(),
             "cloud_coverage_type": self.parse_cloud_type(),
             "weather": weather_description,
+            "weather_groups": self.parse_weather_groups(),
             "trend": self.parse_trend(),
             "runway_states": {rwy: state.__dict__ for rwy, state in self.parse_runway_states().items()},
             "temperature": temp,

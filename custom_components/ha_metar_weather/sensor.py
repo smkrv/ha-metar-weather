@@ -61,39 +61,14 @@ from .const import (
     DEFAULT_ALTITUDE_UNIT,
     TrendState,
     MAX_HISTORY_DISPLAY,
+    CLOUD_COVERAGE_OPTIONS,
+    CLOUD_TYPE_OPTIONS,
+    RUNWAY_SURFACE_OPTIONS,
+    REPORT_TYPE_OPTIONS,
+    CAVOK_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _format_runway_state(state: Optional[dict]) -> Optional[str]:
-    """Format runway state dictionary into a human-readable string."""
-    if not state or not isinstance(state, dict):
-        return None
-
-    parts = []
-
-    # Surface type (key is "surface" in RunwayState dataclass)
-    surface = state.get("surface")
-    if surface:
-        parts.append(surface)
-
-    # Coverage
-    coverage = state.get("coverage")
-    if coverage:
-        parts.append(f"coverage: {coverage}")
-
-    # Depth (can be 0 for dry runway, so use "is not None")
-    depth = state.get("depth")
-    if depth is not None:
-        parts.append(f"depth: {depth}")
-
-    # Friction
-    friction = state.get("friction")
-    if friction is not None:
-        parts.append(f"friction: {friction}")
-
-    return ", ".join(parts) if parts else "Clear"
 
 
 @dataclass
@@ -194,7 +169,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="weather",
         name="Weather Condition",
-        value_fn=lambda data: data.get("weather", "Clear"),
+        # Compositional, so not an ENUM. translation_key lets the frontend
+        # localize known slugs; unknown combinations render the raw slug.
+        translation_key="weather",
+        value_fn=lambda data: data.get("weather", "clear"),
         icon="mdi:weather-partly-cloudy",
         has_history=False,
     ),
@@ -212,7 +190,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_state",
         name="Cloud Coverage State",
-        value_fn=lambda data: data.get("cloud_coverage_state", "Clear"),
+        device_class=SensorDeviceClass.ENUM,
+        options=CLOUD_COVERAGE_OPTIONS,
+        translation_key="cloud_coverage_state",
+        value_fn=lambda data: data.get("cloud_coverage_state", "clear"),
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -229,7 +210,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_type",
         name="Cloud Coverage Type",
-        value_fn=lambda data: data.get("cloud_coverage_type", "N/A"),
+        device_class=SensorDeviceClass.ENUM,
+        options=CLOUD_TYPE_OPTIONS,
+        translation_key="cloud_coverage_type",
+        value_fn=lambda data: data.get("cloud_coverage_type", "none"),
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -243,14 +227,20 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="auto_indicator",
         name="Auto Indicator",
-        value_fn=lambda data: "Auto Report" if data.get("auto") else "Manual Report",
+        device_class=SensorDeviceClass.ENUM,
+        options=REPORT_TYPE_OPTIONS,
+        translation_key="report_type",
+        value_fn=lambda data: "auto" if data.get("auto") else "manual",
         icon="mdi:robot",
         has_history=False,
     ),
     MetarSensorEntityDescription(
         key="cavok",
         name="CAVOK",
-        value_fn=lambda data: str(data.get("cavok", False)),
+        device_class=SensorDeviceClass.ENUM,
+        options=CAVOK_OPTIONS,
+        translation_key="cavok",
+        value_fn=lambda data: "yes" if data.get("cavok") else "no",
         icon="mdi:weather-sunny",
         has_history=False,
     ),
@@ -270,7 +260,9 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="trend",
         name="Trend",
-        value_fn=lambda data: data.get("trend", "No trend information"),
+        # Free-form forecast group (NOSIG / TEMPO ... / BECMG ...) kept verbatim
+        # from the raw METAR; language-neutral, so not translated. None -> unknown.
+        value_fn=lambda data: data.get("trend"),
         icon="mdi:trending-up",
         has_history=False,
     ),
@@ -457,6 +449,23 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             if self.entity_description.key != "raw_metar":
                 attrs[ATTR_RAW_METAR] = self.coordinator.data.get("raw_metar")
 
+            key = self.entity_description.key
+
+            # Weather sensor: expose the structured slug breakdown for advanced use.
+            if key == "weather":
+                groups = self.coordinator.data.get("weather_groups")
+                if groups is not None:
+                    attrs["weather_groups"] = groups
+
+            # Per-runway sensor (state = surface slug): expose the rest as attrs.
+            if key.startswith("runway_") and key != "runway_states":
+                runway_id = key[len("runway_"):]
+                rstate = (self.coordinator.data.get("runway_states") or {}).get(runway_id)
+                if rstate:
+                    attrs["coverage"] = rstate.get("coverage")
+                    attrs["depth"] = rstate.get("depth")
+                    attrs["friction"] = rstate.get("friction")
+
             if self.entity_description.has_history and self.hass.data.get(DOMAIN, {}).get("storage"):
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station, self.entity_description.key)
@@ -608,9 +617,14 @@ async def async_setup_entry(
                             description=MetarSensorEntityDescription(
                                 key=f"runway_{runway}",
                                 name=f"Runway {runway} State",
-                                value_fn=lambda data, r=runway: _format_runway_state(
-                                    data.get("runway_states", {}).get(r)
-                                ),
+                                device_class=SensorDeviceClass.ENUM,
+                                options=RUNWAY_SURFACE_OPTIONS,
+                                translation_key="runway_state",
+                                # State = surface slug (localized); coverage / depth /
+                                # friction are exposed via extra_state_attributes.
+                                value_fn=lambda data, r=runway: (
+                                    data.get("runway_states", {}).get(r) or {}
+                                ).get("surface"),
                                 icon="mdi:runway",
                                 has_history=False,
                             ),

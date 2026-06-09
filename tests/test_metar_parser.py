@@ -22,46 +22,70 @@ def test_parser_accepts_raw_string():
 
 def test_light_rain_weather():
     data = parse("KJFK 121651Z 18010KT 10SM -RA FEW020 BKN040 22/18 A2992")
-    assert data["weather"] == "Light Rain"
+    assert data["weather"] == "light_rain"
 
 
 def test_heavy_thunderstorm_rain():
     data = parse("UUEE 121630Z 24008MPS 9999 +TSRA SCT020CB BKN040 18/12 Q1009 NOSIG")
-    assert data["weather"] == "Heavy Thunderstorm Rain"
+    assert data["weather"] == "heavy_thunderstorm_rain"
 
 
 def test_shower_rain_descriptor():
     data = parse("EGLL 121620Z 25015KT 9999 SHRA BKN012 14/11 Q1007")
-    assert data["weather"] == "Shower Rain"
+    assert data["weather"] == "showers_rain"
+
+
+def test_moderate_rain_has_no_intensity_token():
+    data = parse("EGLL 121620Z 25015KT 9999 RA BKN012 14/11 Q1007")
+    assert data["weather"] == "rain"
 
 
 def test_no_weather_is_clear():
     data = parse("KLAX 121653Z 26012KT 10SM 24/12 A3001")
-    assert data["weather"] == "Clear"
+    assert data["weather"] == "clear"
 
 
 def test_cavok_weather():
     data = parse("EGLL 121620Z 25015KT CAVOK 15/08 Q1020")
-    assert data["weather"] == "CAVOK"
+    # CAVOK means no significant weather -> the weather slug is 'clear'.
+    assert data["weather"] == "clear"
     assert data["cavok"] is True
+
+
+def test_weather_groups_structured():
+    data = parse("UUEE 121630Z 24008MPS 9999 +TSRA BKN040 18/12 Q1009 NOSIG")
+    groups = data["weather_groups"]
+    assert groups == [{
+        "intensity": "heavy",
+        "descriptor": "thunderstorm",
+        "phenomena": ["rain"],
+        "recent": False,
+        "raw": "+TSRA",
+    }]
 
 
 def test_cloud_coverage_state_is_first_layer():
     data = parse("KJFK 121651Z 18010KT 10SM -RA FEW020 BKN040 22/18 A2992")
-    assert data["cloud_coverage_state"] == "Few (1-2 oktas)"
+    assert data["cloud_coverage_state"] == "few"
+
+
+def test_cloud_coverage_clear_when_no_layers():
+    data = parse("KLAX 121653Z 26012KT 10SM 24/12 A3001")
+    assert data["cloud_coverage_state"] == "clear"
+    assert data["cloud_coverage_type"] == "none"
 
 
 def test_cloud_layers_height_and_type():
     data = parse("UUEE 121630Z 24008MPS 9999 +TSRA SCT020CB BKN040 18/12 Q1009 NOSIG")
     layers = data["cloud_layers"]
-    assert layers[0]["coverage"] == "Scattered (3-4 oktas)"
+    assert layers[0]["coverage"] == "scattered"
     assert layers[0]["height"] == 2000
-    assert layers[0]["type"] == "Cumulonimbus"
+    assert layers[0]["type"] == "cumulonimbus"
 
 
 def test_trend_nosig():
     data = parse("UUEE 121630Z 24008MPS 9999 BKN040 18/12 Q1009 NOSIG")
-    assert data["trend"] == "No significant change"
+    assert data["trend"] == "NOSIG"
 
 
 def test_trend_tempo_segment():
@@ -116,6 +140,8 @@ def test_runway_state_parsed():
     data = parse("UUEE 121630Z 24008MPS 9999 BKN040 18/12 Q1009 R06R/290060 NOSIG")
     runways = data["runway_states"]
     assert "06R" in runways
+    assert runways["06R"]["surface"] == "wet"
+    assert runways["06R"]["coverage"] == "cov_51_100"
     assert runways["06R"]["friction"] == pytest.approx(0.6)
 
 

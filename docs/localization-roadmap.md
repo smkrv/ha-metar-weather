@@ -1,6 +1,30 @@
 # Localization roadmap (phase 2)
 
-Status: design / not yet implemented. Phase 1 (single-parser source unification, issue #3) is implemented separately and is a prerequisite for this.
+Status: implemented (this is the design that the phase-2 PR carries out). Phase 1 (single-parser source unification, issue #3) shipped first and is a prerequisite.
+
+## Breaking changes (for release notes - bump to a major version)
+
+Sensor state values changed from English prose to stable slugs. The frontend now
+localizes them per user via `translations/<lang>.json`. Recorder history cannot be
+rewritten, so old rows keep the old strings; automations/templates/cards matching
+the old text must be updated.
+
+| Sensor | Old state (example) | New state |
+|--------|--------------------|-----------|
+| Weather Condition | `Light Rain` | `light_rain` (localized for display) |
+| Cloud Coverage State | `Few (1-2 oktas)` | `few` (ENUM, localized) |
+| Cloud Coverage Type | `Cumulonimbus` | `cumulonimbus` (ENUM, localized) |
+| Auto Indicator | `Auto Report` / `Manual Report` | `auto` / `manual` (ENUM) |
+| CAVOK | `True` / `False` | `yes` / `no` (ENUM) |
+| Runway `<id>` State | `Clear and dry, coverage: ...` | surface slug (ENUM, localized); coverage (localized) / depth / friction moved to attributes |
+| Cloud Layers (composite string) | `Few (1-2 oktas) 5000ft, Broken (5-7 oktas) 10000ft` | `few 5000ft, broken 10000ft` (plain string built from slugs, not localized) |
+| All Runways State (composite string) | `Runway 24L: Damp, Coverage: 11-25%, ...` | `Runway 24L: damp, Coverage: cov_11_25, ...` (plain string built from slugs, not localized) |
+| Trend | `No significant change` | `NOSIG` (raw, language-neutral) |
+
+The two composite-string sensors (Cloud Layers, All Runways State) remain plain strings (they are not enumerable); their embedded values are now slugs. The per-field ENUM sensors above are the localized ones.
+
+New languages or weather combinations: edit `scripts/build_translations.py` and run
+`python scripts/build_translations.py` to regenerate `translations/<lang>.json`.
 
 ## Goal
 

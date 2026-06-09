@@ -1,0 +1,386 @@
+{
+  "entity": {
+    "sensor": {
+      "temperature": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "dew_point": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "wind_speed": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "wind_gust": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "wind_direction": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "visibility": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "pressure": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "humidity": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "En hausse",
+              "falling": "En baisse",
+              "stable": "Stable",
+              "veering": "Adonnant",
+              "backing": "Refusant"
+            }
+          }
+        }
+      },
+      "weather": {
+        "state": {
+          "clear": "Aucun phénomène significatif",
+          "drizzle": "Bruine",
+          "light_drizzle": "Bruine faible",
+          "heavy_drizzle": "Bruine forte",
+          "vicinity_drizzle": "Bruine à proximité",
+          "rain": "Pluie",
+          "light_rain": "Pluie faible",
+          "heavy_rain": "Pluie forte",
+          "vicinity_rain": "Pluie à proximité",
+          "snow": "Neige",
+          "light_snow": "Neige faible",
+          "heavy_snow": "Neige forte",
+          "vicinity_snow": "Neige à proximité",
+          "snow_grains": "Neige en grains",
+          "light_snow_grains": "Neige en grains faible",
+          "heavy_snow_grains": "Neige en grains forte",
+          "vicinity_snow_grains": "Neige en grains à proximité",
+          "ice_crystals": "Cristaux de glace",
+          "light_ice_crystals": "Cristaux de glace faibles",
+          "heavy_ice_crystals": "Cristaux de glace forts",
+          "vicinity_ice_crystals": "Cristaux de glace à proximité",
+          "ice_pellets": "Granules de glace",
+          "light_ice_pellets": "Granules de glace faibles",
+          "heavy_ice_pellets": "Granules de glace forts",
+          "vicinity_ice_pellets": "Granules de glace à proximité",
+          "hail": "Grêle",
+          "light_hail": "Grêle faible",
+          "heavy_hail": "Grêle forte",
+          "vicinity_hail": "Grêle à proximité",
+          "small_hail": "Grésil",
+          "light_small_hail": "Grésil faible",
+          "heavy_small_hail": "Grésil fort",
+          "vicinity_small_hail": "Grésil à proximité",
+          "unknown": "Précipitations inconnues",
+          "light_unknown": "Précipitations inconnues faibles",
+          "heavy_unknown": "Précipitations inconnues fortes",
+          "vicinity_unknown": "Précipitations inconnues à proximité",
+          "mist": "Brume",
+          "light_mist": "Brume faible",
+          "heavy_mist": "Brume forte",
+          "vicinity_mist": "Brume à proximité",
+          "fog": "Brouillard",
+          "light_fog": "Brouillard faible",
+          "heavy_fog": "Brouillard fort",
+          "vicinity_fog": "Brouillard à proximité",
+          "smoke": "Fumée",
+          "light_smoke": "Fumée faible",
+          "heavy_smoke": "Fumée forte",
+          "vicinity_smoke": "Fumée à proximité",
+          "volcanic_ash": "Cendres volcaniques",
+          "light_volcanic_ash": "Cendres volcaniques faibles",
+          "heavy_volcanic_ash": "Cendres volcaniques fortes",
+          "vicinity_volcanic_ash": "Cendres volcaniques à proximité",
+          "dust": "Poussière généralisée",
+          "light_dust": "Poussière généralisée faible",
+          "heavy_dust": "Poussière généralisée forte",
+          "vicinity_dust": "Poussière généralisée à proximité",
+          "sand": "Sable",
+          "light_sand": "Sable faible",
+          "heavy_sand": "Sable fort",
+          "vicinity_sand": "Sable à proximité",
+          "haze": "Brume sèche",
+          "light_haze": "Brume sèche faible",
+          "heavy_haze": "Brume sèche forte",
+          "vicinity_haze": "Brume sèche à proximité",
+          "spray": "Embruns",
+          "light_spray": "Embruns faibles",
+          "heavy_spray": "Embruns forts",
+          "vicinity_spray": "Embruns à proximité",
+          "dust_whirls": "Tourbillons de poussière ou de sable",
+          "light_dust_whirls": "Tourbillons de poussière ou de sable faibles",
+          "heavy_dust_whirls": "Tourbillons de poussière ou de sable forts",
+          "vicinity_dust_whirls": "Tourbillons de poussière ou de sable à proximité",
+          "squalls": "Grains",
+          "light_squalls": "Grains faibles",
+          "heavy_squalls": "Grains forts",
+          "vicinity_squalls": "Grains à proximité",
+          "funnel_cloud": "Trombe",
+          "light_funnel_cloud": "Trombe faible",
+          "heavy_funnel_cloud": "Trombe forte",
+          "vicinity_funnel_cloud": "Trombe à proximité",
+          "sandstorm": "Tempête de sable",
+          "light_sandstorm": "Tempête de sable faible",
+          "heavy_sandstorm": "Tempête de sable forte",
+          "vicinity_sandstorm": "Tempête de sable à proximité",
+          "duststorm": "Tempête de poussière",
+          "light_duststorm": "Tempête de poussière faible",
+          "heavy_duststorm": "Tempête de poussière forte",
+          "vicinity_duststorm": "Tempête de poussière à proximité",
+          "thunderstorm": "Orage",
+          "light_thunderstorm": "Orage faible",
+          "heavy_thunderstorm": "Orage fort",
+          "vicinity_thunderstorm": "Orage à proximité",
+          "showers_rain": "Averses de pluie",
+          "light_showers_rain": "Averses de pluie faibles",
+          "heavy_showers_rain": "Averses de pluie fortes",
+          "vicinity_showers_rain": "Averses de pluie à proximité",
+          "showers_snow": "Averses de neige",
+          "light_showers_snow": "Averses de neige faibles",
+          "heavy_showers_snow": "Averses de neige fortes",
+          "vicinity_showers_snow": "Averses de neige à proximité",
+          "showers_drizzle": "Averses de bruine",
+          "light_showers_drizzle": "Averses de bruine faibles",
+          "heavy_showers_drizzle": "Averses de bruine fortes",
+          "vicinity_showers_drizzle": "Averses de bruine à proximité",
+          "thunderstorm_rain": "Orage avec pluie",
+          "light_thunderstorm_rain": "Orage avec pluie faible",
+          "heavy_thunderstorm_rain": "Orage avec pluie forte",
+          "vicinity_thunderstorm_rain": "Orage avec pluie à proximité",
+          "thunderstorm_snow": "Orage avec neige",
+          "light_thunderstorm_snow": "Orage avec neige faible",
+          "heavy_thunderstorm_snow": "Orage avec neige forte",
+          "vicinity_thunderstorm_snow": "Orage avec neige à proximité",
+          "thunderstorm_hail": "Orage avec grêle",
+          "light_thunderstorm_hail": "Orage avec grêle faible",
+          "heavy_thunderstorm_hail": "Orage avec grêle forte",
+          "vicinity_thunderstorm_hail": "Orage avec grêle à proximité",
+          "thunderstorm_small_hail": "Orage avec grésil",
+          "light_thunderstorm_small_hail": "Orage avec grésil faible",
+          "heavy_thunderstorm_small_hail": "Orage avec grésil fort",
+          "vicinity_thunderstorm_small_hail": "Orage avec grésil à proximité",
+          "freezing_rain": "Pluie verglaçante",
+          "light_freezing_rain": "Pluie verglaçante faible",
+          "heavy_freezing_rain": "Pluie verglaçante forte",
+          "vicinity_freezing_rain": "Pluie verglaçante à proximité",
+          "freezing_drizzle": "Bruine verglaçante",
+          "light_freezing_drizzle": "Bruine verglaçante faible",
+          "heavy_freezing_drizzle": "Bruine verglaçante forte",
+          "vicinity_freezing_drizzle": "Bruine verglaçante à proximité",
+          "freezing_fog": "Brouillard givrant",
+          "light_freezing_fog": "Brouillard givrant faible",
+          "heavy_freezing_fog": "Brouillard givrant fort",
+          "vicinity_freezing_fog": "Brouillard givrant à proximité",
+          "blowing_snow": "Chasse-neige élevée",
+          "light_blowing_snow": "Chasse-neige élevée faible",
+          "heavy_blowing_snow": "Chasse-neige élevée forte",
+          "vicinity_blowing_snow": "Chasse-neige élevée à proximité",
+          "blowing_sand": "Chasse-sable élevée",
+          "light_blowing_sand": "Chasse-sable élevée faible",
+          "heavy_blowing_sand": "Chasse-sable élevée forte",
+          "vicinity_blowing_sand": "Chasse-sable élevée à proximité",
+          "blowing_dust": "Chasse-poussière élevée",
+          "light_blowing_dust": "Chasse-poussière élevée faible",
+          "heavy_blowing_dust": "Chasse-poussière élevée forte",
+          "vicinity_blowing_dust": "Chasse-poussière élevée à proximité",
+          "low_drifting_snow": "Chasse-neige basse",
+          "light_low_drifting_snow": "Chasse-neige basse faible",
+          "heavy_low_drifting_snow": "Chasse-neige basse forte",
+          "vicinity_low_drifting_snow": "Chasse-neige basse à proximité",
+          "low_drifting_sand": "Chasse-sable basse",
+          "light_low_drifting_sand": "Chasse-sable basse faible",
+          "heavy_low_drifting_sand": "Chasse-sable basse forte",
+          "vicinity_low_drifting_sand": "Chasse-sable basse à proximité",
+          "shallow_fog": "Brouillard mince",
+          "light_shallow_fog": "Brouillard mince faible",
+          "heavy_shallow_fog": "Brouillard mince fort",
+          "vicinity_shallow_fog": "Brouillard mince à proximité",
+          "patches_fog": "Bancs de brouillard",
+          "light_patches_fog": "Bancs de brouillard faibles",
+          "heavy_patches_fog": "Bancs de brouillard forts",
+          "vicinity_patches_fog": "Bancs de brouillard à proximité",
+          "partial_fog": "Brouillard partiel",
+          "light_partial_fog": "Brouillard partiel faible",
+          "heavy_partial_fog": "Brouillard partiel fort",
+          "vicinity_partial_fog": "Brouillard partiel à proximité",
+          "vicinity_showers": "Averses à proximité",
+          "rain_snow": "Pluie et neige",
+          "light_rain_snow": "Pluie et neige faibles",
+          "heavy_rain_snow": "Pluie et neige fortes",
+          "snow_rain": "Neige et pluie",
+          "light_snow_rain": "Neige et pluie faibles",
+          "heavy_snow_rain": "Neige et pluie fortes",
+          "rain_drizzle": "Pluie et bruine",
+          "light_rain_drizzle": "Pluie et bruine faibles",
+          "heavy_rain_drizzle": "Pluie et bruine fortes",
+          "drizzle_rain": "Bruine et pluie",
+          "light_drizzle_rain": "Bruine et pluie faibles",
+          "heavy_drizzle_rain": "Bruine et pluie fortes",
+          "snow_ice_pellets": "Neige et granules de glace",
+          "light_snow_ice_pellets": "Neige et granules de glace faibles",
+          "heavy_snow_ice_pellets": "Neige et granules de glace forts",
+          "rain_ice_pellets": "Pluie et granules de glace",
+          "light_rain_ice_pellets": "Pluie et granules de glace faibles",
+          "heavy_rain_ice_pellets": "Pluie et granules de glace forts",
+          "recent_rain": "Pluie récente",
+          "recent_snow": "Neige récente",
+          "recent_drizzle": "Bruine récente",
+          "recent_showers": "Averses récentes",
+          "recent_fog": "Brouillard récent",
+          "recent_hail": "Grêle récente",
+          "recent_small_hail": "Grésil récent",
+          "recent_ice_pellets": "Granules de glace récents",
+          "recent_thunderstorm": "Orage récent",
+          "recent_freezing_rain": "Pluie verglaçante récente",
+          "recent_blowing_snow": "Chasse-neige élevée récente"
+        }
+      },
+      "cloud_coverage_state": {
+        "state": {
+          "clear": "Clair",
+          "clear_sky": "Ciel dégagé",
+          "clr": "Pas de nuages sous 12 000 ft",
+          "no_significant": "Pas de nuage significatif",
+          "ncd": "Aucun nuage détecté",
+          "cavok": "Plafond et visibilité OK",
+          "few": "Rares (1-2 octas)",
+          "scattered": "Épars (3-4 octas)",
+          "broken": "Fragmenté (5-7 octas)",
+          "overcast": "Couvert (8 octas)",
+          "vertical_visibility": "Visibilité verticale"
+        }
+      },
+      "cloud_coverage_type": {
+        "state": {
+          "none": "Aucun",
+          "cumulonimbus": "Cumulonimbus",
+          "towering_cumulus": "Cumulus bourgeonnant",
+          "cirrus": "Cirrus",
+          "cirrostratus": "Cirrostratus",
+          "cirrocumulus": "Cirrocumulus",
+          "altostratus": "Altostratus",
+          "altocumulus": "Altocumulus",
+          "nimbostratus": "Nimbostratus",
+          "stratocumulus": "Stratocumulus",
+          "stratus": "Stratus",
+          "cumulus": "Cumulus"
+        }
+      },
+      "report_type": {
+        "state": {
+          "auto": "Rapport automatique",
+          "manual": "Rapport manuel"
+        }
+      },
+      "cavok": {
+        "state": {
+          "yes": "Oui",
+          "no": "Non"
+        }
+      },
+      "runway_state": {
+        "state": {
+          "clear_and_dry": "Dégagée et sèche",
+          "damp": "Humide",
+          "wet": "Mouillée ou flaques",
+          "rime_or_frost": "Givre ou gelée",
+          "dry_snow": "Neige sèche",
+          "wet_snow": "Neige mouillée",
+          "slush": "Neige fondante",
+          "ice": "Glace",
+          "compacted_snow": "Neige compactée",
+          "frozen_ruts": "Ornières gelées",
+          "not_reported": "Non communiqué",
+          "snow_closed": "Fermée pour neige",
+          "cleared": "Dégagée",
+          "unknown": "Inconnue"
+        },
+        "state_attributes": {
+          "coverage": {
+            "state": {
+              "cov_0": "0%",
+              "cov_lt10": "Moins de 10%",
+              "cov_11_25": "11-25%",
+              "cov_26_50": "26-50%",
+              "cov_51_75": "51-75%",
+              "cov_76_90": "76-90%",
+              "cov_91_100": "91-100%",
+              "cov_51_100": "51-100%",
+              "not_reported": "Non communiqué",
+              "unknown": "Inconnue"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -52,9 +52,10 @@ def test_textual_fields_identical_across_sources():
     ):
         assert merged[field] == parsed[field], f"textual field {field} diverged"
 
-    # And the concrete value the user reported as broken:
-    assert merged["weather"] == "Light Rain"
-    assert merged["cloud_coverage_state"] == "Few (1-2 oktas)"
+    # And the concrete value the user reported as broken (now a stable slug,
+    # localized by the frontend):
+    assert merged["weather"] == "light_rain"
+    assert merged["cloud_coverage_state"] == "few"
 
 
 def test_numeric_fields_come_from_awc():
@@ -145,7 +146,7 @@ def test_real_awc_path_matches_parser():
     ):
         assert merged[field] == parsed[field]
 
-    assert merged["weather"] == "Heavy Thunderstorm Rain"
+    assert merged["weather"] == "heavy_thunderstorm_rain"
     assert merged["pressure"] == 1009.0
     assert merged["station_name"] == "Sheremetyevo"
 
