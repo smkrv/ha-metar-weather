@@ -1,5 +1,5 @@
 """
-Config flow for HA METAR Weather integration.
+Config flow for METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV
@@ -95,7 +95,7 @@ def _build_unit_selector(options: list[SelectOptionDict]) -> SelectSelector:
 
 
 class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for HA METAR Weather."""
+    """Handle a config flow for METAR Weather."""
 
     VERSION = 2  # Bumped for unit config
 
@@ -244,7 +244,7 @@ class HaMetarWeatherConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HaMetarWeatherOptionsFlow(OptionsFlow):
-    """Handle options flow for HA METAR Weather integration."""
+    """Handle options flow for METAR Weather integration."""
 
     def __init__(self, entry: ConfigEntry) -> None:
         """

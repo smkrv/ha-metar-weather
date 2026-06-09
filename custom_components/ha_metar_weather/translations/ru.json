@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Настройка HA METAR Weather",
+        "title": "Настройка METAR Weather",
         "description": "Настройка мониторинга метеосводок METAR.\n\nИсточники данных (NOAA):\n• Основной: Aviation Weather Center API (aviationweather.gov)\n• Резервный: NOAA FTP (tgftp.nws.noaa.gov)\n\nПожалуйста, убедитесь, что вы соблюдаете условия использования данных NOAA.",
         "data": {
           "icao": "ICAO код аэропорта",

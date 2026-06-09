@@ -1,5 +1,5 @@
 """
-Utility functions for HA METAR Weather integration.
+Utility functions for METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
 @github: https://github.com/smkrv/ha-metar-weather

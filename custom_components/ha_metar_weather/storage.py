@@ -1,5 +1,5 @@
 """
-Storage handling for HA METAR Weather integration.
+Storage handling for METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
 @author: SMKRV

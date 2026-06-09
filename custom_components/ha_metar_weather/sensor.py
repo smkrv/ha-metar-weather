@@ -1,5 +1,5 @@
 """
-Sensor platform for HA METAR Weather integration.
+Sensor platform for METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
 @github: https://github.com/smkrv/ha-metar-weather

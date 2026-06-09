@@ -1,5 +1,5 @@
 """
-Parser for the HA METAR Weather integration.
+Parser for the METAR Weather integration.
 
 @license: CC BY-NC-SA 4.0 International
 @github: https://github.com/smkrv/ha-metar-weather
