@@ -193,6 +193,16 @@ def build_weather() -> dict[str, dict[str, str]]:
     for c_slug, c in RECENT_COMPOUND.items():
         add(f"recent_{c_slug}", [RECENT, c])
 
+    # Apply hand/native-reviewed overrides on top of the naive composition.
+    # weather_overrides.json fixes word order, gender agreement and capitalization
+    # per language (composition is only the coverage floor). Regenerate the file by
+    # re-running the polish-weather-translations review when adding combinations.
+    ov_path = Path(__file__).resolve().parent / "weather_overrides.json"
+    if ov_path.exists():
+        overrides = json.loads(ov_path.read_text(encoding="utf-8"))
+        for slug, strings in overrides.items():
+            out.setdefault(slug, {lang: slug for lang in LANGS}).update(strings)
+
     return out
 
 
