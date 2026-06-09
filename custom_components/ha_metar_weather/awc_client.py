@@ -14,7 +14,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
@@ -32,7 +31,7 @@ from .const import (
     AWC_API_TIMEOUT,
     DEFAULT_EXCELLENT_VISIBILITY_KM,
 )
-from .utils import calculate_humidity, parse_runway_states_from_raw
+from .utils import calculate_humidity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -159,8 +158,14 @@ class AWCApiClient:
             return result[0]
         return None
 
-    def parse_awc_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse AWC API response into internal format.
+    @staticmethod
+    def parse_awc_response(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract AWC's authoritative numerics and metadata.
+
+        Returns numeric fields plus raw_metar, station_name and observation_time
+        only. Textual fields (weather, clouds, trend, runway states, cavok/auto)
+        are intentionally NOT produced here: they are derived from raw_metar by
+        the shared MetarParser so the AWC and AVWX paths agree (issue #3).
 
         The AWC API returns JSON. Key fields (as of 2026):
         - obsTime: int (epoch seconds) — previously was ISO string
@@ -169,14 +174,13 @@ class AWCApiClient:
         - visib: str (statute miles, e.g. "6+", "10")
         - wspd/wgst: int (knots)
         - rawOb: str (raw METAR)
-        - clouds: list[dict] with cover/base
         - name: str (station name)
 
         Args:
             data: AWC API response data
 
         Returns:
-            Parsed data in internal format
+            Numerics/metadata dictionary (no textual weather fields)
         """
         try:
             # Parse wind data
@@ -261,22 +265,6 @@ class AWCApiClient:
                         altim, data.get("icaoId", "unknown"),
                     )
 
-            # Parse clouds (AWC API returns base already in feet)
-            # Use 'or []' because get() returns None if key exists with null value
-            # Also verify type is list to handle unexpected API changes
-            cloud_layers = []
-            clouds = data.get("clouds")
-            if isinstance(clouds, list):
-                for cloud in clouds:
-                    if isinstance(cloud, dict):
-                        cover = cloud.get("cover", "")
-                        base = cloud.get("base")
-                        cloud_layers.append({
-                            "coverage": cover,
-                            "height": base if base else None,  # Already in feet
-                            "type": cloud.get("type")
-                        })
-
             # Calculate humidity using shared utility function
             temp = data.get("temp")
             dewp = data.get("dewp")
@@ -317,21 +305,17 @@ class AWCApiClient:
                 )
                 observation_time = datetime.now(timezone.utc)
 
-            # Determine CAVOK (Ceiling And Visibility OK - visibility >= 10 km)
-            cavok = False
             raw_metar = data.get("rawOb", "")
-            if "CAVOK" in raw_metar:
-                cavok = True
-                if visibility is None:
-                    visibility = 10.0  # CAVOK means at least 10 km visibility
 
-            # Parse weather string
-            weather = data.get("wxString") or "Clear"
+            # CAVOK implies visibility of at least 10 km. The textual CAVOK flag
+            # itself is produced by the shared parser; here we only backfill the
+            # numeric so AWC's authoritative visibility stays correct.
+            if visibility is None and "CAVOK" in raw_metar:
+                visibility = 10.0
 
-            # Parse runway states from raw METAR (AWC doesn't provide this directly)
-            runway_states = parse_runway_states_from_raw(raw_metar) if raw_metar else {}
-
-            # Build parsed data
+            # Numerics and metadata only. All textual fields (weather, clouds,
+            # trend, runway states, cavok/auto) are derived by the shared
+            # MetarParser from raw_metar so both data sources agree (issue #3).
             parsed = {
                 "raw_metar": raw_metar,
                 "station_name": data.get("name"),
@@ -345,18 +329,9 @@ class AWCApiClient:
                 "wind_variable_direction": wind_variable,
                 "visibility": visibility,
                 "pressure": pressure,
-                "weather": weather,
-                "cloud_layers": cloud_layers,
-                "cloud_coverage_state": cloud_layers[0].get("coverage", "Clear") if cloud_layers else "Clear",
-                "cloud_coverage_height": cloud_layers[0].get("height") if cloud_layers else None,
-                "cloud_coverage_type": cloud_layers[0].get("type") or "N/A" if cloud_layers else "N/A",
-                "cavok": cavok,
-                "auto": "AUTO" in raw_metar,
-                "trend": None,
-                "runway_states": runway_states,
             }
 
-            _LOGGER.debug("Parsed AWC data for %s: %s", data.get("icaoId"), parsed)
+            _LOGGER.debug("Parsed AWC numerics for %s: %s", data.get("icaoId"), parsed)
             return parsed
 
         except Exception as err:

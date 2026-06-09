@@ -68,10 +68,15 @@ class MetarParser:
     RUNWAY_SURFACE_CODES = RUNWAY_SURFACE_CODES
     RUNWAY_COVERAGE_CODES = RUNWAY_COVERAGE_CODES
 
-    def __init__(self, metar_data: Any):
-        """Initialize parser with METAR data."""
-        self.metar = metar_data
-        self.raw_metar = getattr(metar_data, 'raw', '')
+    def __init__(self, raw_metar: str):
+        """Initialize parser with a raw METAR string.
+
+        The parser is a pure ``raw -> dict`` transform. Both data sources (AWC
+        and AVWX) feed it the raw METAR so they produce identical textual output
+        (see issue #3). Source-specific extras (the real station name, AWC's
+        authoritative numerics) are layered in by the api_client afterwards.
+        """
+        self.raw_metar = raw_metar or ""
         # Caches for expensive parsing operations
         self._cloud_layers_cache: Optional[List[CloudLayer]] = None
         self._runway_states_cache: Optional[Dict[str, RunwayState]] = None
@@ -192,7 +197,7 @@ class MetarParser:
     def parse_weather(self) -> str:
         """Parse weather conditions."""
         try:
-            if getattr(self.metar, 'cavok', False):
+            if "CAVOK" in self.raw_metar:
                 return "CAVOK"
 
             weather_codes = []
@@ -309,52 +314,30 @@ class MetarParser:
             return "Clear"
 
     def parse_trend(self) -> Optional[str]:
-        """Parse trend information."""
-        try:
-            trend_parts = []
+        """Parse the trend/forecast group from the raw METAR.
 
-            # Check for NOSIG (No Significant Change) in raw METAR
-            if 'NOSIG' in self.raw_metar:
+        Trend is free-form forecast text, so it is returned verbatim from the
+        raw string (NOSIG, or the TEMPO/BECMG segment up to any RMK section).
+        """
+        try:
+            # Trend groups appear before any RMK section; drop remarks first so a
+            # TEMPO/BECMG token inside RMK is not mistaken for a trend.
+            body = re.split(r'\bRMK\b', self.raw_metar)[0]
+
+            # NOSIG (No Significant Change)
+            if 'NOSIG' in body:
                 return "No significant change"
 
-            if hasattr(self.metar, 'tempo'):
-                trend_parts.append(f"TEMPO {self.metar.tempo}")
-            if hasattr(self.metar, 'trend'):
-                trend_parts.append(f"TREND {self.metar.trend}")
-            if hasattr(self.metar, 'becoming'):
-                trend_parts.append(f"BECMG {self.metar.becoming}")
+            # TEMPO / BECMG forecast segment - return from the keyword to the end
+            match = re.search(r'\b(?:TEMPO|BECMG)\b', body)
+            if not match:
+                return None
 
-            return " | ".join(trend_parts) if trend_parts else None
+            segment = body[match.start():].strip()
+            return segment or None
 
         except Exception as err:
             _LOGGER.error("Error parsing trend information: %s", err)
-            return None
-
-    def _extract_numeric_value(self, value: Any) -> Optional[float]:
-        """Extract numeric value from METAR number objects."""
-        _LOGGER.debug("Extracting numeric value from: %s", value)
-
-        try:
-            if hasattr(value, 'value'):
-                val = value.value
-                # For visibility in meters, convert to appropriate units
-                if hasattr(value, 'units'):
-                    if value.units == 'm':  # if value is in meters
-                        return float(val)  # keep in meters
-                return float(val)
-
-            if isinstance(value, str):
-                if value.startswith('M'):
-                    return -float(value[1:])
-                return float(value)
-
-            if isinstance(value, (int, float)):
-                return float(value)
-
-            return None
-
-        except (ValueError, TypeError) as err:
-            _LOGGER.error("Error extracting numeric value: %s (%s)", value, err)
             return None
 
     def parse_cloud_coverage(self) -> str:
@@ -523,17 +506,11 @@ class MetarParser:
         # Parse weather phenomena using the proper method that handles intensity
         weather_description = self.parse_weather()
 
-        # Try to get station name from AVWX data
-        # AVWX may provide station info via .station attribute or .station_info
+        # The raw string only yields the ICAO code as the station name. The real
+        # airport name (when the data source provides one) is layered in by the
+        # api_client after parsing.
         station_name = None
-        if hasattr(self.metar, 'station') and self.metar.station:
-            station_name = getattr(self.metar.station, 'name', None)
-        if not station_name and hasattr(self.metar, 'station_info'):
-            station_name = getattr(self.metar.station_info, 'name', None)
-
-        # Fallback to ICAO code from raw METAR if name not available
-        if not station_name and self.raw_metar:
-            # First 4 characters of METAR are the ICAO code
+        if self.raw_metar:
             parts = self.raw_metar.split()
             if parts:
                 icao = parts[0]
