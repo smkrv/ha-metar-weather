@@ -121,6 +121,12 @@ def test_layers_localized_french():
     assert format_cloud_layers(layers, _names("fr")) == "Épars 7500ft, Fragmenté 25000ft"
 
 
+def test_few_localized_french_is_peu():
+    """Issue #12 follow-up: French aviation decodes FEW as 'Peu', not 'Rares'."""
+    layers = _layers("METAR LFLC 100600Z AUTO 06003KT 9999 FEW046 14/08 Q1020")
+    assert format_cloud_layers(layers, _names("fr")) == "Peu 4600ft"
+
+
 def test_layers_localized_english():
     layers = _layers("METAR LFLC 100600Z AUTO 06003KT 9999 FEW046 BKN058 OVC074 14/08 Q1020")
     assert (

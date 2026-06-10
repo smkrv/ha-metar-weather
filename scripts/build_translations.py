@@ -30,7 +30,9 @@ CLOUD_COVERAGE = {
     "no_significant": {"en": "No significant clouds", "de": "Keine bedeutenden Wolken", "ru": "Нет значимых облаков", "fr": "Pas de nuage significatif"},
     "ncd": {"en": "No clouds detected", "de": "Keine Wolken erkannt", "ru": "Облака не обнаружены", "fr": "Aucun nuage détecté"},
     "cavok": {"en": "Ceiling and visibility OK", "de": "Wolkenuntergrenze und Sicht OK", "ru": "Облачность и видимость в норме", "fr": "Plafond et visibilité OK"},
-    "few": {"en": "Few (1-2 oktas)", "de": "Wenige Wolken (1-2 Achtel)", "ru": "Малооблачно (1-2 окты)", "fr": "Rares (1-2 octas)"},
+    # fr "Peu", not "Rares" - French aviation decode for FEW (requested by the
+    # French contributor in issue #12).
+    "few": {"en": "Few (1-2 oktas)", "de": "Wenige Wolken (1-2 Achtel)", "ru": "Малооблачно (1-2 окты)", "fr": "Peu (1-2 octas)"},
     "scattered": {"en": "Scattered (3-4 oktas)", "de": "Aufgelockert (3-4 Achtel)", "ru": "Рассеянная облачность (3-4 окты)", "fr": "Épars (3-4 octas)"},
     "broken": {"en": "Broken (5-7 oktas)", "de": "Bedeckt mit Lücken (5-7 Achtel)", "ru": "Значительная облачность (5-7 окт)", "fr": "Fragmenté (5-7 octas)"},
     "overcast": {"en": "Overcast (8 oktas)", "de": "Bedeckt (8 Achtel)", "ru": "Сплошная облачность (8 окт)", "fr": "Couvert (8 octas)"},
