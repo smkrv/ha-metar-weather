@@ -1,4 +1,130 @@
 {
+  "config": {
+    "step": {
+      "user": {
+        "title": "Paramètres HA METAR Weather",
+        "description": "Configurez la surveillance météorologique METARg.\n\nSources de données (NOAA):\n• Source principale : API du centre météorologique de l’aviation (aviationweather.gov)\n• Source de secours : NOAA FT (tgftp.nws.noaa.gov)\n\nAssurez-vous de respecter les conditions d’utilisation des données de la NOAA.",
+        "data": {
+          "icao": "Code d'aéroport OACI",
+          "terms_accepted": "J’accepte les termes et conditions de la source de données"
+        }
+      },
+      "units": {
+        "title": "Configurationdes unités",
+        "description": "Sélectionnez les unités d’affichage pour les données météorologiques..\nChoisissez « Auto » pour utiliser les paramètres système de l’assistant personnel.\nChoisissez « Natif (METAR) » pour utiliser les unités d’aviation standard (nœuds, milles terrestres, pieds, hPa).",
+        "data": {
+          "temperature_unit": "Température",
+          "wind_speed_unit": "Vitesse du vent",
+          "visibility_unit": "Visibilité",
+          "pressure_unit": "Pression",
+          "altitude_unit": "Hauteur / Altitude des nuages"
+        }
+      }
+    },
+    "error": {
+      "invalid_icao": "Format du code OACI invalide",
+      "terms_not_accepted": "Vous devez accepter les termes et conditions",
+      "station_exists": "Cette station est déjà configurée",
+      "station_exists_other_entry": "Cette station est déjà configurée dans une autre entrée d’intégration",
+      "cannot_connect": "Échec de la connexion à la station",
+      "unknown": "Erreur inattendue"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Réglages des METAR",
+        "menu_options": {
+          "units": "Configurer les unités",
+          "stations": "Gestion des stations",
+          "station_remove": "Supprimer la station"
+        }
+      },
+      "units": {
+        "title": "Configuration des unités",
+        "description": "Sélectionnez les unités d’affichage pour les données météorologiques.\nChoisissez 'Auto' pour utiliser les paramètres système de l’assistant personnel.\nChoisissez « Natif (METAR) » pour utiliser les unités d’aviation standard (nœuds, milles terrestres, pieds, hPa).",
+        "data": {
+          "temperature_unit": "Température",
+          "wind_speed_unit": "Vitesse du vent",
+          "visibility_unit": "Visibilité",
+          "pressure_unit": "Pression",
+          "altitude_unit": "Hauteur / Altitude des nuages"
+        }
+      },
+      "stations": {
+        "title": "Gérer les stations",
+        "description": "Stations actuellement configurées:\n{stations}"
+      },
+      "station_add": {
+        "title": "Ajouter une station",
+        "description": "Saisissez le code OACI de la nouvelle station",
+        "data": {
+          "icao": "Code d’aéroport OACI"
+        }
+      },
+      "station_configure": {
+        "title": "Configuration de la station",
+        "description": "Souhaitez-vous ajouter une autre station ?",
+        "data": {
+          "add_another": "Ajouter une autre station"
+        }
+      },
+      "station_remove": {
+        "title": "Retirer une station",
+        "description": "Sélectionnez une station à retirer. Remarque : Il doit rester au moins une station.",
+        "data": {
+          "station": "Station à supprimer"
+        }
+      }
+    },
+    "error": {
+      "cannot_remove_last": "Impossible de retirer la dernière station",
+      "station_exists": "Cette station est déjà configurée dans cette entrée",
+      "station_exists_other_entry": "Cette station est déjà configurée dans une autre entrée d’intégration"
+    }
+  },
+  "exceptions": {
+    "invalid_icao_format": {
+      "message": "Format de code OACI non valide: {station}"
+    },
+    "station_not_found": {
+      "message": "Station {station} introuvable dans aucune entrée de configuration"
+    },
+    "station_not_configured": {
+      "message": "Station {station} n'es pas configurée"
+    },
+    "storage_not_initialized": {
+      "message": "Stockage non initialisé"
+    },
+    "clear_history_timeout": {
+      "message": "Délai d’attente dépassé pour la purge de l'historique de la station {station}."
+    },
+    "clear_history_failed": {
+      "message": "Échec de la purge de l’historique pour la station {station} : {error}."
+    }
+  },
+  "services": {
+    "update_station": {
+      "name": "Mise à jour de la station",
+      "description": "Mise à jour des données METAR pour une station spécifique.",
+      "fields": {
+        "station": {
+          "name": "Station",
+          "description": "Code OACI de la station à mettre à jour."
+        }
+      }
+    },
+    "clear_history": {
+      "name": "Purger l'historique",
+      "description": "Purger les données historiques pour une station spécifique.",
+      "fields": {
+        "station": {
+          "name": "Station",
+          "description": "Code OACI de la station à purger."
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "temperature": {
@@ -8,8 +134,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -21,8 +147,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -34,8 +160,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -47,8 +173,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -60,8 +186,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -73,8 +199,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -86,8 +212,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
@@ -99,8 +225,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tounant à droite",
+              "backing": "Tounant à gauche"
             }
           }
         }
