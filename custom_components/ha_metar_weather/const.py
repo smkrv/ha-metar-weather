@@ -70,11 +70,13 @@ DEFAULT_SCAN_INTERVAL: Final[timedelta] = timedelta(minutes=30)
 # Storage settings
 STORAGE_KEY: Final[str] = f"{DOMAIN}.history"
 
-# Unit conversion factors
-KNOTS_TO_KMH: Final[float] = 1.852
+# Unit conversion factors. Must match HA core's unit_conversion.py exactly,
+# or a stored value converted back to its source unit by core drifts off the
+# reported one (1 kt stored as 1.9 km/h displayed as "1.03 kn" - issue #7).
+KNOTS_TO_KMH: Final[float] = 1.852          # core: 1852 m per NM
 MPS_TO_KMH: Final[float] = 3.6
-MILES_TO_KM: Final[float] = 1.60934
-INHG_TO_HPA: Final[float] = 33.8639
+MILES_TO_KM: Final[float] = 1.609344        # core: _MILE_TO_M
+INHG_TO_HPA: Final[float] = 33.86388640341  # core: PressureConverter inHg
 FEET_TO_METERS: Final[float] = 0.3048
 
 # Visibility constants
@@ -139,14 +141,18 @@ FIXED_UNITS: Final[Dict[str, str]] = {
     "humidity": PERCENTAGE,
 }
 
-# Numeric precision for different measurements
+# Internal storage precision. NOT a display precision: values are stored in
+# base units (km/h, km, hPa) at near-full precision so that HA's conversion
+# back to the unit the report used (kn, SM, inHg, m) reproduces the exact
+# reported value. 6 decimals only strips binary float noise. Rounding for
+# display happens in the frontend via suggested_display_precision (sensor.py).
 NUMERIC_PRECISION: Final[Dict[str, int]] = {
     "temperature": 1,
     "dew_point": 1,
-    "wind_speed": 1,
-    "wind_gust": 1,
-    "visibility": 1,
-    "pressure": 1,
+    "wind_speed": 6,
+    "wind_gust": 6,
+    "visibility": 6,
+    "pressure": 6,
     "humidity": 1,
     "cloud_coverage_height": 0
 }
@@ -385,18 +391,43 @@ DEFAULT_VISIBILITY_UNIT: Final[str] = UnitOfLength.KILOMETERS
 DEFAULT_PRESSURE_UNIT: Final[str] = UnitOfPressure.HPA
 DEFAULT_ALTITUDE_UNIT: Final[str] = UnitOfLength.FEET
 
+# Display precision per *display* unit. HA stores suggested_display_precision
+# relative to the suggested unit (core only ratio-adjusts it when the user
+# manually overrides the unit), so each unit we may suggest needs its own
+# sensible decimals: integer meters/feet, hundredths of inHg (A2992 = 29.92),
+# hundredths of a statute mile (common US fractions 1/4SM..3/4SM render
+# exactly; the rare 1/8SM and 1/16SM round to 0.12/0.06 mi - the price of
+# not showing "10.000 mi" for every clear day).
+DISPLAY_PRECISION_BY_UNIT: Final[Dict[str, int]] = {
+    UnitOfTemperature.CELSIUS: 1,
+    UnitOfTemperature.FAHRENHEIT: 1,
+    UnitOfSpeed.KILOMETERS_PER_HOUR: 1,
+    UnitOfSpeed.METERS_PER_SECOND: 1,
+    UnitOfSpeed.MILES_PER_HOUR: 1,
+    UnitOfSpeed.KNOTS: 1,
+    UnitOfLength.KILOMETERS: 1,
+    UnitOfLength.METERS: 0,
+    UnitOfLength.MILES: 2,
+    UnitOfLength.FEET: 0,
+    UnitOfPressure.HPA: 1,
+    UnitOfPressure.INHG: 2,
+    UnitOfPressure.MMHG: 1,
+}
+
 # Unit option key for "auto" (use HA system)
 UNIT_AUTO: Final[str] = "auto"
 
 # Unit option key for "native" (use original METAR/aviation units)
 UNIT_NATIVE: Final[str] = "native"
 
-# Native METAR units mapping (standard aviation units)
-# These are the units typically used in METAR reports
+# Fallback for the "native" unit mode, used only while the station's raw METAR
+# is not available yet. Once a report exists, utils.detect_native_units() reads
+# the units the station itself transmits (KT vs MPS, meters vs SM, Q vs A) and
+# overrides these defaults per station.
 NATIVE_METAR_UNITS: Final[Dict[str, str]] = {
     "temperature": UnitOfTemperature.CELSIUS,      # METAR always uses Celsius
-    "wind_speed": UnitOfSpeed.KNOTS,               # METAR uses knots (KT) or m/s (MPS)
-    "visibility": UnitOfLength.MILES,              # US METAR uses statute miles (SM)
-    "pressure": UnitOfPressure.HPA,                # ICAO uses hPa (QNH), US uses inHg (A)
-    "altitude": UnitOfLength.FEET,                 # Cloud heights always in feet
+    "wind_speed": UnitOfSpeed.KNOTS,               # most stations report KT
+    "visibility": UnitOfLength.METERS,             # ICAO reports meters; US uses SM
+    "pressure": UnitOfPressure.HPA,                # ICAO QNH (Q); US altimeter (A) is inHg
+    "altitude": UnitOfLength.FEET,                 # cloud heights always in feet
 }

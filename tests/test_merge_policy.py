@@ -10,6 +10,8 @@ degrees of the main group and may carry T-group decimals the parser does not
 read.
 """
 
+import pytest
+
 from custom_components.ha_metar_weather.metar_parser import MetarParser
 from custom_components.ha_metar_weather.api_client import merge_awc_numerics
 from custom_components.ha_metar_weather.awc_client import AWCApiClient
@@ -63,8 +65,8 @@ def test_awc_visibility_used_when_raw_has_none():
             "rawOb": "METAR LFLC 091930Z AUTO 02003KT 16/06 Q1020 NOSIG",
         }
     )
-    # AWC "6+" -> 6 SM -> 9.7 km, better than nothing
-    assert merged["visibility"] == 9.7
+    # AWC "6+" -> 6 SM -> 9.656064 km (full precision), better than nothing
+    assert merged["visibility"] == pytest.approx(9.656064, abs=1e-9)
 
 
 def test_mps_wind_not_quantized_to_whole_knots():
@@ -86,8 +88,8 @@ def test_mps_wind_not_quantized_to_whole_knots():
     assert merged["wind_speed"] == 28.8  # 8 m/s * 3.6, not 16 kt * 1.852
 
 
-def test_us_altimeter_keeps_tenth_hpa_precision():
-    """A2992 = 1013.2 hPa exactly; AWC's int altim (1013) loses 0.2 hPa."""
+def test_us_altimeter_keeps_inhg_precision():
+    """A2992 = 29.92 inHg; AWC's int altim (1013 hPa) loses the hundredths."""
     merged = _merge(
         {
             "icaoId": "KJFK",
@@ -102,7 +104,10 @@ def test_us_altimeter_keeps_tenth_hpa_precision():
             "altim": 1013,
         }
     )
-    assert merged["pressure"] == 1013.2
+    # 29.92 inHg at full precision; converting back must yield 29.92 exactly,
+    # while AWC's int hPa would give 29.91 (issue #7 display round-trip).
+    assert merged["pressure"] == pytest.approx(1013.2074, abs=1e-3)
+    assert merged["pressure"] != 1013.0
 
 
 def test_temperature_and_dew_point_stay_awc_first():

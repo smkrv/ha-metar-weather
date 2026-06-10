@@ -11,9 +11,95 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
-from .const import RUNWAY_SURFACE_CODES, RUNWAY_COVERAGE_CODES, ICAO_REGEX
+from homeassistant.const import UnitOfLength, UnitOfPressure, UnitOfSpeed
+
+from .const import (
+    RUNWAY_SURFACE_CODES,
+    RUNWAY_COVERAGE_CODES,
+    ICAO_REGEX,
+    NATIVE_METAR_UNITS,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# Wind group: 24008KT, VRB03G15MPS, 00000KT; AUTO stations with a failed wind
+# sensor transmit slash placeholders (/////KT, ///08MPS) - the unit suffix is
+# still meaningful for unit detection.
+_WIND_GROUP_RE = re.compile(
+    r"(?:VRB|/{3}|\d{3})(?:\d{2,3}|/{2,3})(?:G(?:\d{2,3}|/{2,3}))?(KT|MPS)$"
+)
+# Visibility in meters (ICAO): 9999, 0800NDV, 3000NE; CAVOK handled separately.
+_VIS_METERS_RE = re.compile(r"\d{4}(?:NDV|[NSEW]{1,2})?$")
+# Visibility in statute miles (North America): 10SM, P6SM, M1/4SM, 1/2SM.
+_VIS_SM_RE = re.compile(r"[PM]?\d+(?:/\d+)?SM$")
+
+
+def detect_native_units(raw_metar: Optional[str]) -> Dict[str, str]:
+    """Units the station itself uses in its METAR reports.
+
+    "Native (METAR)" display mode follows the units of the actual report, which
+    differ by region: wind in KT or MPS, visibility in meters (ICAO) or statute
+    miles (US/Canada), pressure as Q-group (hPa) or A-group (inHg). Temperature
+    is always Celsius and cloud heights are always feet. A station's format is
+    stable, so one report is enough. Falls back to NATIVE_METAR_UNITS for any
+    group missing from the report (or when no report is available yet).
+    """
+    units = dict(NATIVE_METAR_UNITS)
+    if not raw_metar:
+        return units
+
+    # Trend/remark sections may repeat groups in other formats; use the body.
+    body = re.split(r"\b(?:RMK|TEMPO|BECMG)\b", raw_metar)[0]
+    tokens = body.split()
+
+    pressure_unit = None
+    for token in tokens:
+        if wind := _WIND_GROUP_RE.fullmatch(token):
+            units["wind_speed"] = (
+                UnitOfSpeed.KNOTS
+                if wind.group(1) == "KT"
+                else UnitOfSpeed.METERS_PER_SECOND
+            )
+            break
+    else:
+        _LOGGER.debug(
+            "No wind group recognized in %r; native wind unit falls back to %s",
+            raw_metar,
+            units["wind_speed"],
+        )
+    for token in tokens:
+        if re.fullmatch(r"Q\d{4}", token):
+            pressure_unit = UnitOfPressure.HPA
+            break
+        if re.fullmatch(r"A\d{4}", token):
+            pressure_unit = UnitOfPressure.INHG
+            break
+    if pressure_unit:
+        units["pressure"] = pressure_unit
+
+    for token in tokens:
+        if token == "CAVOK" or _VIS_METERS_RE.fullmatch(token):
+            units["visibility"] = UnitOfLength.METERS
+            break
+        if _VIS_SM_RE.fullmatch(token):
+            units["visibility"] = UnitOfLength.MILES
+            break
+    else:
+        # No visibility group at all: the pressure group style is a reliable
+        # regional proxy (A-group stations are the ones reporting SM).
+        if pressure_unit == UnitOfPressure.INHG:
+            units["visibility"] = UnitOfLength.MILES
+        elif pressure_unit == UnitOfPressure.HPA:
+            units["visibility"] = UnitOfLength.METERS
+        else:
+            _LOGGER.debug(
+                "No visibility or pressure group recognized in %r; native "
+                "visibility unit falls back to %s",
+                raw_metar,
+                units["visibility"],
+            )
+
+    return units
 
 
 def validate_icao_format(icao: str) -> bool:

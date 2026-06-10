@@ -11,7 +11,7 @@
       },
       "units": {
         "title": "Unit Configuration",
-        "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.\nChoose 'Native (METAR)' to use standard aviation units (knots, statute miles, feet, hPa).",
+        "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.\nChoose 'Native (METAR)' to follow the units used in this station's own reports (e.g. knots, meters and hPa for ICAO stations; knots, statute miles and inHg for US stations; cloud heights in feet).",
         "data": {
           "temperature_unit": "Temperature",
           "wind_speed_unit": "Wind Speed",
@@ -42,7 +42,7 @@
       },
       "units": {
         "title": "Unit Configuration",
-        "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.\nChoose 'Native (METAR)' to use standard aviation units (knots, statute miles, feet, hPa).",
+        "description": "Select display units for weather data.\nChoose 'Auto' to use Home Assistant system settings.\nChoose 'Native (METAR)' to follow the units used in this station's own reports (e.g. knots, meters and hPa for ICAO stations; knots, statute miles and inHg for US stations; cloud heights in feet).",
         "data": {
           "temperature_unit": "Temperature",
           "wind_speed_unit": "Wind Speed",

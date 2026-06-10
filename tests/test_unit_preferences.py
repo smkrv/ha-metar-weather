@@ -36,14 +36,37 @@ def test_resolve_auto_returns_none():
     assert resolve_display_unit({"visibility_unit": "auto"}, "visibility") is None
 
 
-def test_resolve_native_metar_units():
-    assert resolve_display_unit({"visibility_unit": "native"}, "visibility") == "mi"
+def test_resolve_native_fallback_without_raw_metar():
+    """No report yet: static aviation defaults apply."""
+    assert resolve_display_unit({"visibility_unit": "native"}, "visibility") == "m"
     assert resolve_display_unit({"wind_speed_unit": "native"}, "wind_speed") == "kn"
     assert resolve_display_unit({"pressure_unit": "native"}, "pressure") == "hPa"
     assert (
         resolve_display_unit({"altitude_unit": "native"}, "cloud_coverage_height")
         == "ft"
     )
+
+
+RAW_ICAO = "METAR LFLC 100600Z AUTO 06003KT 020V130 9999 FEW046 14/08 Q1020 NOSIG"
+RAW_US = "METAR KJFK 100551Z 22006KT 10SM SCT250 18/14 A3002 RMK AO2 SLP166"
+RAW_MPS = "METAR UUEE 100600Z 28003MPS 240V330 CAVOK 25/13 Q1013 NOSIG"
+
+
+def test_resolve_native_follows_station_report_units():
+    """Native = the units of the station's own METAR (issue #7 follow-up)."""
+    icao = {"visibility_unit": "native", "wind_speed_unit": "native",
+            "pressure_unit": "native"}
+    assert resolve_display_unit(icao, "visibility", RAW_ICAO) == "m"
+    assert resolve_display_unit(icao, "wind_speed", RAW_ICAO) == "kn"
+    assert resolve_display_unit(icao, "pressure", RAW_ICAO) == "hPa"
+
+    assert resolve_display_unit(icao, "visibility", RAW_US) == "mi"
+    assert resolve_display_unit(icao, "wind_speed", RAW_US) == "kn"
+    assert resolve_display_unit(icao, "pressure", RAW_US) == "inHg"
+
+    assert resolve_display_unit(icao, "visibility", RAW_MPS) == "m"
+    assert resolve_display_unit(icao, "wind_speed", RAW_MPS) == "m/s"
+    assert resolve_display_unit(icao, "pressure", RAW_MPS) == "hPa"
 
 
 def test_resolve_explicit_unit_passthrough():

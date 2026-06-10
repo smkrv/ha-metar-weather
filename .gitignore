@@ -50,4 +50,5 @@ Thumbs.db
 *.psd
 *.zip
 *.txt
+!requirements_test.txt
 *.pdf

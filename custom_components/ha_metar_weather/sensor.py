@@ -48,13 +48,13 @@ from .const import (
     ATTR_TREND,
     VALUE_RANGES,
     NUMERIC_PRECISION,
+    DISPLAY_PRECISION_BY_UNIT,
     DEGREE,
     PERCENTAGE,
     VERSION,
     FIXED_UNITS,
     UNIT_AUTO,
     UNIT_NATIVE,
-    NATIVE_METAR_UNITS,
     TrendState,
     MAX_HISTORY_DISPLAY,
     CLOUD_COVERAGE_OPTIONS,
@@ -63,6 +63,7 @@ from .const import (
     REPORT_TYPE_OPTIONS,
     CAVOK_OPTIONS,
 )
+from .utils import detect_native_units
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,11 +89,17 @@ _NATIVE_UNIT_KEYS: dict[str, str] = {
 }
 
 
-def resolve_display_unit(entry_data: Mapping[str, Any], sensor_key: str) -> Optional[str]:
+def resolve_display_unit(
+    entry_data: Mapping[str, Any],
+    sensor_key: str,
+    raw_metar: Optional[str] = None,
+) -> Optional[str]:
     """Resolve the configured display unit for a sensor.
 
     Returns None for "auto" (HA's own unit-system default) and for sensors
-    without a configurable unit.
+    without a configurable unit. For "native", the units are read from the
+    station's own raw METAR (KT vs MPS, meters vs SM, Q vs A - issue #7);
+    without a report yet, the static NATIVE_METAR_UNITS fallback applies.
     """
     conf_key = _UNIT_CONF_KEYS.get(sensor_key)
     if conf_key is None or sensor_key in FIXED_UNITS:
@@ -102,7 +109,7 @@ def resolve_display_unit(entry_data: Mapping[str, Any], sensor_key: str) -> Opti
     if configured == UNIT_AUTO:
         return None
     if configured == UNIT_NATIVE:
-        return NATIVE_METAR_UNITS[_NATIVE_UNIT_KEYS[conf_key]]
+        return detect_native_units(raw_metar)[_NATIVE_UNIT_KEYS[conf_key]]
     return configured
 
 
@@ -170,6 +177,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("temperature"),
         icon="mdi:thermometer",
         trend_threshold=0.5,
@@ -180,6 +188,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("dew_point"),
         icon="mdi:water-percent",
         trend_threshold=0.5,
@@ -190,6 +199,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
         device_class=SensorDeviceClass.WIND_SPEED,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("wind_speed"),
         icon="mdi:weather-windy",
         trend_threshold=1.0,
@@ -200,6 +210,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR,
         device_class=SensorDeviceClass.WIND_SPEED,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("wind_gust"),
         icon="mdi:weather-windy-variant",
         trend_threshold=2.0,  # 2 km/h threshold for gusts (more sensitive than wind_speed)
@@ -215,6 +226,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         name="Wind Direction",
         native_unit_of_measurement=DEGREE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         # For VRB wind, return None (sensor will be unavailable)
         # The separate wind_variable_direction sensor shows "VRB" status
         value_fn=lambda data: data.get("wind_direction"),
@@ -227,6 +239,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("visibility"),
         icon="mdi:eye",
         trend_threshold=1.0,
@@ -239,6 +252,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         # system pick psi instead of inHg on US installs.
         device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("pressure"),
         icon="mdi:gauge",
         trend_threshold=1.0,
@@ -249,6 +263,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.HUMIDITY,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=lambda data: data.get("humidity"),
         icon="mdi:water-percent",
         trend_threshold=5,  # 5% absolute change threshold
@@ -290,6 +305,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfLength.FEET,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=lambda data: data.get("cloud_coverage_height"),
         icon="mdi:cloud-outline",
         has_history=False,
@@ -381,6 +397,16 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         # core falls back to the unit system's preferred unit.
         if suggested_unit is not None:
             self._attr_suggested_unit_of_measurement = suggested_unit
+            # Core treats suggested_display_precision as relative to the
+            # suggested unit, so pick the decimals that fit it (2 for inHg,
+            # 0 for meters/feet, ...). The description default is in terms
+            # of the native unit and only fits the "auto" case.
+            if description.suggested_display_precision is not None:
+                self._attr_suggested_display_precision = (
+                    DISPLAY_PRECISION_BY_UNIT.get(
+                        suggested_unit, description.suggested_display_precision
+                    )
+                )
 
         # Add device_info
         self._attr_device_info = {
@@ -470,7 +496,13 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station, self.entity_description.key)
                 if history:
-                    attrs[ATTR_HISTORICAL_DATA] = history[-MAX_HISTORY_DISPLAY:]
+                    # Attributes are in the internal base units (km/h, km,
+                    # hPa). Storage keeps full precision for exact unit
+                    # round-trips; round here so panels stay readable.
+                    attrs[ATTR_HISTORICAL_DATA] = [
+                        round(value, 2) if isinstance(value, float) else value
+                        for value in history[-MAX_HISTORY_DISPLAY:]
+                    ]
 
                     if self.entity_description.state_class == SensorStateClass.MEASUREMENT:
                         try:
@@ -487,8 +519,8 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                                         continue  # Skip non-numeric strings
 
                             if values:
-                                attrs["min_24h"] = min(values)
-                                attrs["max_24h"] = max(values)
+                                attrs["min_24h"] = round(min(values), 2)
+                                attrs["max_24h"] = round(max(values), 2)
                                 attrs["average_24h"] = round(sum(values) / len(values), 2)
                                 attrs[ATTR_TREND] = self._calculate_trend(values)
 
@@ -597,8 +629,15 @@ async def async_setup_entry(
 
         _LOGGER.debug("Setting up sensors for station %s", station_upper)
 
+        # For "native" units: the station's own report determines the units
+        # (KT vs MPS, meters vs SM, Q vs A). The registry sync below runs on
+        # every setup, so once a report exists the units self-correct.
+        raw_metar = (coordinator.data or {}).get("raw_metar")
+
         for description in SENSOR_TYPES:
-            resolved_unit = resolve_display_unit(config_entry.data, description.key)
+            resolved_unit = resolve_display_unit(
+                config_entry.data, description.key, raw_metar
+            )
             sync_registry_suggested_unit(
                 ent_reg, hass, station_upper, description, resolved_unit
             )

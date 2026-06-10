@@ -203,9 +203,9 @@ class AWCApiClient:
 
             # Convert wind speed from knots to km/h
             if wind_speed is not None:
-                wind_speed = round(float(wind_speed) * KNOTS_TO_KMH, 1)
+                wind_speed = round(float(wind_speed) * KNOTS_TO_KMH, 6)
             if wind_gust is not None:
-                wind_gust = round(float(wind_gust) * KNOTS_TO_KMH, 1)
+                wind_gust = round(float(wind_gust) * KNOTS_TO_KMH, 6)
 
             # Parse visibility (AWC returns in statute miles)
             visibility = None
@@ -216,7 +216,7 @@ class AWCApiClient:
                     if "+" in visib:
                         try:
                             base_value = float(visib.replace("+", ""))
-                            visibility = round(base_value * MILES_TO_KM, 1)
+                            visibility = round(base_value * MILES_TO_KM, 6)
                         except ValueError:
                             visibility = DEFAULT_EXCELLENT_VISIBILITY_KM
                     # Handle mixed fractions like "1 1/2" (1.5 SM)
@@ -228,7 +228,7 @@ class AWCApiClient:
                                 frac_parts = space_parts[1].split("/")
                                 if len(frac_parts) == 2:
                                     frac = float(frac_parts[0]) / float(frac_parts[1])
-                                    visibility = round((whole + frac) * MILES_TO_KM, 1)
+                                    visibility = round((whole + frac) * MILES_TO_KM, 6)
                         except (ValueError, ZeroDivisionError):
                             visibility = None
                     # Handle simple fractions like "1/2", "1/4", "3/4"
@@ -238,18 +238,18 @@ class AWCApiClient:
                             if len(parts) == 2:
                                 numerator = float(parts[0])
                                 denominator = float(parts[1])
-                                visibility = round((numerator / denominator) * MILES_TO_KM, 1)
+                                visibility = round((numerator / denominator) * MILES_TO_KM, 6)
                         except (ValueError, ZeroDivisionError):
                             visibility = None
                     else:
                         try:
                             # Convert statute miles to kilometers
-                            visibility = round(float(visib) * MILES_TO_KM, 1)
+                            visibility = round(float(visib) * MILES_TO_KM, 6)
                         except ValueError:
                             visibility = None
                 else:
                     # Numeric value in statute miles
-                    visibility = round(float(visib) * MILES_TO_KM, 1)
+                    visibility = round(float(visib) * MILES_TO_KM, 6)
 
             # Parse pressure
             # AWC API now returns altim in hPa (e.g. 1021).
@@ -261,7 +261,7 @@ class AWCApiClient:
                     altim_f = float(altim)
                     if altim_f < 100:
                         # Value in inHg (e.g. 30.12) — convert to hPa
-                        pressure = round(altim_f * INHG_TO_HPA, 1)
+                        pressure = round(altim_f * INHG_TO_HPA, 6)
                     else:
                         pressure = round(altim_f, 1)
                 except (ValueError, TypeError):

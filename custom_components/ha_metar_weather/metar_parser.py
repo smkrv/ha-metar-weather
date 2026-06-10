@@ -31,6 +31,15 @@ from .utils import calculate_humidity, parse_runway_states_from_raw
 
 _LOGGER = logging.getLogger(__name__)
 
+# Tokens that open a trend/remarks section. Everything after the first of
+# these is forecast or commentary, not the current observation; scanning past
+# the boundary lets a forecast group (BECMG 31010KT, TEMPO CAVOK) overwrite
+# the actual conditions.
+TREND_BOUNDARY_TOKENS: tuple[str, ...] = (
+    'TEMPO', 'BECMG', 'NOSIG', 'RMK', 'FM', 'PROB30', 'PROB40'
+)
+
+
 @dataclass
 class CloudLayer:
     """Represents a cloud layer in METAR."""
@@ -85,10 +94,22 @@ class MetarParser:
         # Caches for expensive parsing operations
         self._cloud_layers_cache: Optional[List[CloudLayer]] = None
         self._runway_states_cache: Optional[Dict[str, RunwayState]] = None
+        self._body_parts_cache: Optional[List[str]] = None
         if not self.raw_metar:
             _LOGGER.warning("Empty raw METAR string received, parsing may be incomplete")
         else:
             _LOGGER.debug("Initializing METAR parser with data: %s", self.raw_metar)
+
+    def _body_parts(self) -> List[str]:
+        """Tokens of the current-conditions body (before trend/remarks)."""
+        if self._body_parts_cache is None:
+            body: List[str] = []
+            for part in self.raw_metar.split():
+                if part in TREND_BOUNDARY_TOKENS:
+                    break
+                body.append(part)
+            self._body_parts_cache = body
+        return self._body_parts_cache
 
     def parse_cloud_layers(self) -> List[CloudLayer]:
         """Parse cloud information from METAR.
@@ -102,12 +123,8 @@ class MetarParser:
 
         layers = []
         try:
-            # Search for string parts containing cloud information
-            parts = self.raw_metar.split()
-            for part in parts:
-                # Stop at trend/forecast sections - these are not current conditions
-                if part in ('TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40', 'NOSIG', 'RMK'):
-                    break
+            # Search the current-conditions body for cloud information
+            for part in self._body_parts():
                 # Standard cloud layers: FEW, SCT, BKN, OVC
                 if any(part.startswith(prefix) for prefix in ['FEW', 'SCT', 'BKN', 'OVC']):
                     coverage_code = part[:3]
@@ -209,16 +226,14 @@ class MetarParser:
         """
         groups: List[Dict[str, Any]] = []
         try:
-            parts = self.raw_metar.split()
+            # Body only: a trend section may carry its own CAVOK or weather
+            # groups (BECMG CAVOK), which must not wipe the current weather.
+            parts = self._body_parts()
 
             if "CAVOK" in parts:
                 return []
 
             for original_part in parts:
-                # Stop at remarks / trend sections (not current conditions).
-                if original_part in ('RMK', 'TEMPO', 'BECMG', 'FM', 'PROB30', 'PROB40'):
-                    break
-
                 # Skip non-weather tokens. Runway groups (R24L/550362) are caught
                 # by the '/' check; do NOT skip a leading 'R' (RA = rain).
                 if (original_part.endswith('KT') or original_part.endswith('MPS') or
@@ -373,19 +388,23 @@ class MetarParser:
 
     def get_parsed_data(self) -> Dict[str, Any]:
         """Return complete parsed METAR data."""
-        raw_parts = self.raw_metar.split()
+        # Current conditions end where the trend/remarks sections begin. A
+        # BECMG/TEMPO group may carry its own wind (BECMG 31010KT), visibility
+        # or pressure; scanning past the boundary would let a *forecast* value
+        # overwrite the actual observation.
+        body_parts = self._body_parts()
 
-        # Determine CAVOK status
-        cavok = "CAVOK" in self.raw_metar
+        # Determine CAVOK status (current conditions only)
+        cavok = "CAVOK" in body_parts
 
         # Parse wind data
-        wind_data = self._parse_wind(raw_parts)
+        wind_data = self._parse_wind(body_parts)
 
         # Parse temperature and dew point
-        temp, dew = self._parse_temp_dew(raw_parts)
+        temp, dew = self._parse_temp_dew(body_parts)
 
         # Parse pressure
-        pressure = self._parse_pressure(raw_parts)
+        pressure = self._parse_pressure(body_parts)
 
         # Calculate humidity
         humidity = self._calculate_humidity(temp, dew)
@@ -400,7 +419,7 @@ class MetarParser:
         else:
             # Find the wind part index to start looking for visibility after it
             wind_index = -1
-            for i, part in enumerate(raw_parts):
+            for i, part in enumerate(body_parts):
                 if part.endswith('KT') or part.endswith('MPS'):
                     wind_index = i
                     break
@@ -414,9 +433,9 @@ class MetarParser:
             # Look for visibility after wind part (visibility comes within first 2-3 parts after wind)
             if wind_index >= 0:
                 # Limit search to prevent matching unrelated 4-digit numbers later in METAR
-                max_visibility_search = min(wind_index + 4, len(raw_parts))
+                max_visibility_search = min(wind_index + 4, len(body_parts))
 
-                for idx, part in enumerate(raw_parts[wind_index + 1:max_visibility_search]):
+                for idx, part in enumerate(body_parts[wind_index + 1:max_visibility_search]):
                     # Skip variable wind direction (e.g., 180V240)
                     if re.match(r'^\d{3}V\d{3}$', part):
                         continue
@@ -464,7 +483,7 @@ class MetarParser:
                     sm_match = re.match(r'^P?(\d+)SM$', part)
                     if sm_match:
                         vis_miles = float(sm_match.group(1))
-                        visibility = round(vis_miles * MILES_TO_KM, 1)
+                        visibility = round(vis_miles * MILES_TO_KM, 6)
                         _LOGGER.debug("Parsed SM visibility: %s SM = %s km", vis_miles, visibility)
                         break
 
@@ -481,7 +500,7 @@ class MetarParser:
                             # Check if previous part was a whole number (mixed fraction like "1 1/2SM")
                             # idx from enumerate is safe, unlike .index() which could raise ValueError
                             if idx > 0:
-                                prev_part = raw_parts[wind_index + 1 + idx - 1]
+                                prev_part = body_parts[wind_index + 1 + idx - 1]
                                 # Previous part must be a standalone single digit (1-9)
                                 # Not a runway code, wind, or other METAR element
                                 if (prev_part.isdigit() and
@@ -491,7 +510,7 @@ class MetarParser:
                                     _LOGGER.debug("Parsed mixed fractional SM visibility: %s %s/%s SM = %s km",
                                                 prev_part, int(numerator), int(denominator), vis_miles)
 
-                            visibility = round(vis_miles * MILES_TO_KM, 1)
+                            visibility = round(vis_miles * MILES_TO_KM, 6)
                             if vis_miles == numerator / denominator:
                                 _LOGGER.debug("Parsed fractional SM visibility: %s/%s SM = %s km",
                                             int(numerator), int(denominator), visibility)
@@ -572,7 +591,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_kt <= 200:  # reasonable maximum for knots
-                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 1)
+                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 6)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
                             continue
@@ -580,7 +599,7 @@ class MetarParser:
                         if vrb_match.group(2):
                             gust_kt = int(vrb_match.group(2))
                             if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
-                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 1)
+                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 6)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
 
@@ -613,7 +632,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_kt <= 200:  # reasonable maximum for knots
-                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 1)
+                            result["speed"] = round(speed_kt * KNOTS_TO_KMH, 6)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s kt", speed_kt)
                             continue
@@ -621,7 +640,7 @@ class MetarParser:
                         if match.group(3):
                             gust_kt = int(match.group(3))
                             if 0 <= gust_kt <= 300:  # reasonable maximum for gusts
-                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 1)
+                                result["gust"] = round(gust_kt * KNOTS_TO_KMH, 6)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s kt", gust_kt)
 
@@ -644,7 +663,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
-                            result["speed"] = round(speed_ms * MPS_TO_KMH, 1)
+                            result["speed"] = round(speed_ms * MPS_TO_KMH, 6)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
                             continue
@@ -652,7 +671,7 @@ class MetarParser:
                         if vrb_match.group(2):
                             gust_ms = int(vrb_match.group(2))
                             if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
-                                result["gust"] = round(gust_ms * MPS_TO_KMH, 1)
+                                result["gust"] = round(gust_ms * MPS_TO_KMH, 6)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
 
@@ -685,7 +704,7 @@ class MetarParser:
 
                         # Validate wind speed
                         if 0 <= speed_ms <= 100:  # reasonable maximum for m/s
-                            result["speed"] = round(speed_ms * MPS_TO_KMH, 1)
+                            result["speed"] = round(speed_ms * MPS_TO_KMH, 6)
                         else:
                             _LOGGER.warning("Invalid wind speed: %s m/s", speed_ms)
                             continue
@@ -693,7 +712,7 @@ class MetarParser:
                         if match.group(3):
                             gust_ms = int(match.group(3))
                             if 0 <= gust_ms <= 150:  # reasonable maximum for gusts in m/s
-                                result["gust"] = round(gust_ms * MPS_TO_KMH, 1)
+                                result["gust"] = round(gust_ms * MPS_TO_KMH, 6)
                             else:
                                 _LOGGER.warning("Invalid wind gust: %s m/s", gust_ms)
 
@@ -791,7 +810,7 @@ class MetarParser:
                 try:
                     inhg = float(part[1:]) / 100  # A3012 -> 30.12
                     # Convert inHg to hPa
-                    hpa = round(inhg * INHG_TO_HPA, 1)
+                    hpa = round(inhg * INHG_TO_HPA, 6)
                     _LOGGER.debug("Parsed A pressure: %s inHg = %s hPa", inhg, hpa)
                     return hpa
                 except ValueError:

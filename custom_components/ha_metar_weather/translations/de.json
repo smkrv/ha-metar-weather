@@ -11,7 +11,7 @@
       },
       "units": {
         "title": "Einheitenkonfiguration",
-        "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für Standard-Luftfahrteinheiten (Knoten, Meilen, Fuß, hPa).",
+        "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für die Einheiten aus den Meldungen der Station selbst (z. B. Knoten, Meter und hPa für ICAO-Stationen; Knoten, Meilen und inHg für US-Stationen; Wolkenhöhen in Fuß).",
         "data": {
           "temperature_unit": "Temperatur",
           "wind_speed_unit": "Windgeschwindigkeit",
@@ -42,7 +42,7 @@
       },
       "units": {
         "title": "Einheitenkonfiguration",
-        "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für Standard-Luftfahrteinheiten (Knoten, Meilen, Fuß, hPa).",
+        "description": "Wählen Sie Anzeigeeinheiten für Wetterdaten.\nWählen Sie 'Auto' für Home Assistant Systemeinstellungen.\nWählen Sie 'Native (METAR)' für die Einheiten aus den Meldungen der Station selbst (z. B. Knoten, Meter und hPa für ICAO-Stationen; Knoten, Meilen und inHg für US-Stationen; Wolkenhöhen in Fuß).",
         "data": {
           "temperature_unit": "Temperatur",
           "wind_speed_unit": "Windgeschwindigkeit",
