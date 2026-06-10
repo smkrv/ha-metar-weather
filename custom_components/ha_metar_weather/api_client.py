@@ -6,7 +6,7 @@ Fallback source: AVWX library (NOAA FTP)
 
 Both sources use NOAA data, ensuring consistency and reliability.
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @github: https://github.com/smkrv/ha-metar-weather
 """
 from __future__ import annotations
@@ -28,6 +28,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .awc_client import AWCApiClient, AWCApiError
 from .metar_parser import MetarParser
+from .utils import calculate_humidity
 from .const import (
     VALUE_RANGES,
     NUMERIC_PRECISION,
@@ -35,6 +36,110 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# Numeric fields where AWC's JSON is authoritative: AWC is never worse than
+# the whole degrees of the raw 16/06 group and may carry T-group decimals the
+# parser does not read.
+_AWC_AUTHORITATIVE_KEYS: tuple[str, ...] = (
+    "temperature",
+    "dew_point",
+)
+
+# Numeric fields where the raw METAR is exact while AWC's JSON is quantized or
+# capped: visibility in statute miles ("6+" turns 9999/CAVOK = 10 km into
+# 9.7 km - issue #8), winds in whole knots (lossy for MPS stations), altimeter
+# as int hPa (lossy for US A-group reports). The parser value wins; AWC only
+# fills gaps: a visibility group missing from the report entirely, or a
+# garbled/out-of-range token the parser rejected.
+_AWC_FALLBACK_KEYS: tuple[str, ...] = (
+    "wind_speed",
+    "wind_direction",
+    "wind_gust",
+    "visibility",
+    "pressure",
+)
+
+
+def _is_usable(key: str, value: Any) -> bool:
+    """True if the value would survive the VALUE_RANGES check for this key."""
+    value_range = VALUE_RANGES.get(key)
+    if value_range is None:
+        return True
+    try:
+        return value_range[0] <= float(value) <= value_range[1]
+    except (ValueError, TypeError):
+        return False
+
+
+def merge_awc_numerics(
+    parsed: Dict[str, Any], awc_meta: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Merge AWC numerics into parser-derived data.
+
+    Textual fields (weather, clouds, trend, runway states, cavok/auto) come from
+    the shared :class:`MetarParser` so both data sources agree (issue #3).
+    Temperature/dew point are taken from AWC when present; the remaining numerics
+    keep the exact parser value and use AWC only as a fallback (issue #8).
+    Humidity is recomputed from the merged temperature/dew point pair. The real
+    station name and the observation time come from AWC. Inputs are not mutated.
+
+    Args:
+        parsed: Output of ``MetarParser(raw).get_parsed_data()``.
+        awc_meta: AWC numerics/metadata from ``parse_awc_response``.
+
+    Returns:
+        A new merged dictionary.
+    """
+    merged = deepcopy(parsed)
+
+    for key in _AWC_AUTHORITATIVE_KEYS + _AWC_FALLBACK_KEYS:
+        value = awc_meta.get(key)
+        if value is None:
+            continue
+        if key in _AWC_FALLBACK_KEYS:
+            # A parser value the later range check would null anyway counts
+            # as absent - let a valid AWC value fill it (e.g. a garbled
+            # Q-group misread as 10133 hPa).
+            parser_value = merged.get(key)
+            if parser_value is not None and _is_usable(key, parser_value):
+                continue
+        # Only overlay an AWC numeric that is itself valid. A corrupt/out-of-range
+        # AWC value must not clobber the parser's value (derived from the same raw
+        # METAR), which would otherwise be nulled by the later range check.
+        if not _is_usable(key, value):
+            _LOGGER.warning(
+                "AWC %s=%r out of range or not numeric for %s; keeping parser value",
+                key,
+                value,
+                awc_meta.get("station_name") or "station",
+            )
+            continue
+        merged[key] = value
+
+    # Humidity is derived, not observed: keep it consistent with whichever
+    # temperature/dew point pair won the merge.
+    humidity = calculate_humidity(merged.get("temperature"), merged.get("dew_point"))
+    if humidity is not None:
+        merged["humidity"] = humidity
+
+    # The variable wind direction *range* (e.g. "180°-240°") only exists in the
+    # raw string, so keep the parser value; fall back to AWC's "VRB" marker only
+    # when the parser found nothing.
+    if (
+        merged.get("wind_variable_direction") is None
+        and awc_meta.get("wind_variable_direction") is not None
+    ):
+        merged["wind_variable_direction"] = awc_meta["wind_variable_direction"]
+
+    station_name = awc_meta.get("station_name")
+    if station_name:
+        merged["station_name"] = station_name
+
+    if awc_meta.get("observation_time") is not None:
+        merged["observation_time"] = awc_meta["observation_time"]
+
+    return merged
 
 
 class DataSource(Enum):
@@ -160,8 +265,22 @@ class MetarApiClient:
         if not raw_data:
             return None
 
-        parsed = self._awc_client.parse_awc_response(raw_data)
-        return self._validate_and_round(parsed)
+        awc_meta = self._awc_client.parse_awc_response(raw_data)
+
+        raw_metar = awc_meta.get("raw_metar")
+        if not raw_metar:
+            # Without the raw METAR we cannot produce the canonical textual
+            # fields; surface it and let fetch_data() fall back to AVWX.
+            _LOGGER.warning(
+                "AWC response for %s has no raw METAR (rawOb); falling back to AVWX",
+                self.icao,
+            )
+            return None
+
+        # Single parser for all textual fields, AWC numerics overlaid on top.
+        parsed = MetarParser(raw_metar).get_parsed_data()
+        merged = merge_awc_numerics(parsed, awc_meta)
+        return self._validate_and_round(merged)
 
     async def _fetch_from_avwx(self) -> Optional[Dict[str, Any]]:
         """Fetch and parse data from AVWX (NOAA FTP).
@@ -188,9 +307,16 @@ class MetarApiClient:
             if not self._avwx_metar.raw:
                 raise MetarApiClientError("No raw METAR string from AVWX")
 
-            # Parse using our MetarParser
-            parser = MetarParser(self._avwx_metar.data)
+            # Parse using our MetarParser (raw string -> canonical dict).
+            parser = MetarParser(self._avwx_metar.raw)
             parsed_data = parser.get_parsed_data()
+
+            # Layer in the real station name from AVWX (the parser only yields
+            # the ICAO code). Fall back silently to the ICAO if unavailable.
+            station = getattr(self._avwx_metar, "station", None)
+            station_name = getattr(station, "name", None) if station else None
+            if station_name:
+                parsed_data["station_name"] = station_name
 
             # Add observation time
             # AVWX returns Timestamp object with .dt attribute, not datetime directly

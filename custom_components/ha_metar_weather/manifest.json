@@ -1,6 +1,6 @@
 {
   "domain": "ha_metar_weather",
-  "name": "HA METAR Weather",
+  "name": "METAR Weather",
   "codeowners": ["@smkrv"],
   "config_flow": true,
   "dependencies": ["http"],
@@ -15,5 +15,5 @@
     "certifi>=2024.2.2"
   ],
   "single_config_entry": false,
-  "version": "3.0.4"
+  "version": "4.0.1"
 }

@@ -1,0 +1,1172 @@
+{
+  "clear": {
+    "en": "Clear",
+    "de": "Keine signifikanten Wettererscheinungen",
+    "ru": "Без особых явлений",
+    "fr": "Aucun phénomène significatif"
+  },
+  "drizzle": {
+    "en": "Drizzle",
+    "de": "Nieselregen",
+    "ru": "Морось",
+    "fr": "Bruine"
+  },
+  "light_drizzle": {
+    "en": "Light drizzle",
+    "de": "Leichter Nieselregen",
+    "ru": "Слабая морось",
+    "fr": "Bruine faible"
+  },
+  "heavy_drizzle": {
+    "en": "Heavy drizzle",
+    "de": "Starker Nieselregen",
+    "ru": "Сильная морось",
+    "fr": "Bruine forte"
+  },
+  "vicinity_drizzle": {
+    "en": "Drizzle in the vicinity",
+    "de": "Nieselregen in der Nähe",
+    "ru": "Морось в окрестности",
+    "fr": "Bruine à proximité"
+  },
+  "rain": {
+    "en": "Rain",
+    "de": "Regen",
+    "ru": "Дождь",
+    "fr": "Pluie"
+  },
+  "light_rain": {
+    "en": "Light rain",
+    "de": "Leichter Regen",
+    "ru": "Слабый дождь",
+    "fr": "Pluie faible"
+  },
+  "heavy_rain": {
+    "en": "Heavy rain",
+    "de": "Starker Regen",
+    "ru": "Сильный дождь",
+    "fr": "Pluie forte"
+  },
+  "vicinity_rain": {
+    "en": "Rain in the vicinity",
+    "de": "Regen in der Nähe",
+    "ru": "Дождь в окрестности",
+    "fr": "Pluie à proximité"
+  },
+  "snow": {
+    "en": "Snow",
+    "de": "Schnee",
+    "ru": "Снег",
+    "fr": "Neige"
+  },
+  "light_snow": {
+    "en": "Light snow",
+    "de": "Leichter Schnee",
+    "ru": "Слабый снег",
+    "fr": "Neige faible"
+  },
+  "heavy_snow": {
+    "en": "Heavy snow",
+    "de": "Starker Schnee",
+    "ru": "Сильный снег",
+    "fr": "Neige forte"
+  },
+  "vicinity_snow": {
+    "en": "Snow in the vicinity",
+    "de": "Schnee in der Nähe",
+    "ru": "Снег в окрестности",
+    "fr": "Neige à proximité"
+  },
+  "snow_grains": {
+    "en": "Snow grains",
+    "de": "Schneegriesel",
+    "ru": "Снежные зёрна",
+    "fr": "Neige en grains"
+  },
+  "light_snow_grains": {
+    "en": "Light snow grains",
+    "de": "Leichter Schneegriesel",
+    "ru": "Слабые снежные зёрна",
+    "fr": "Neige en grains faible"
+  },
+  "heavy_snow_grains": {
+    "en": "Heavy snow grains",
+    "de": "Starker Schneegriesel",
+    "ru": "Сильные снежные зёрна",
+    "fr": "Neige en grains forte"
+  },
+  "vicinity_snow_grains": {
+    "en": "Snow grains in the vicinity",
+    "de": "Schneegriesel in der Nähe",
+    "ru": "Снежные зёрна в окрестности",
+    "fr": "Neige en grains à proximité"
+  },
+  "ice_crystals": {
+    "en": "Ice crystals",
+    "de": "Eisnadeln",
+    "ru": "Ледяные иглы",
+    "fr": "Cristaux de glace"
+  },
+  "light_ice_crystals": {
+    "en": "Light ice crystals",
+    "de": "Leichte Eisnadeln",
+    "ru": "Слабые ледяные иглы",
+    "fr": "Cristaux de glace faibles"
+  },
+  "heavy_ice_crystals": {
+    "en": "Heavy ice crystals",
+    "de": "Starke Eisnadeln",
+    "ru": "Сильные ледяные иглы",
+    "fr": "Cristaux de glace forts"
+  },
+  "vicinity_ice_crystals": {
+    "en": "Ice crystals in the vicinity",
+    "de": "Eisnadeln in der Nähe",
+    "ru": "Ледяные иглы в окрестности",
+    "fr": "Cristaux de glace à proximité"
+  },
+  "ice_pellets": {
+    "en": "Ice pellets",
+    "de": "Eiskörner",
+    "ru": "Ледяная крупа",
+    "fr": "Granules de glace"
+  },
+  "light_ice_pellets": {
+    "en": "Light ice pellets",
+    "de": "Leichte Eiskörner",
+    "ru": "Слабая ледяная крупа",
+    "fr": "Granules de glace faibles"
+  },
+  "heavy_ice_pellets": {
+    "en": "Heavy ice pellets",
+    "de": "Starke Eiskörner",
+    "ru": "Сильная ледяная крупа",
+    "fr": "Granules de glace forts"
+  },
+  "vicinity_ice_pellets": {
+    "en": "Ice pellets in the vicinity",
+    "de": "Eiskörner in der Nähe",
+    "ru": "Ледяная крупа в окрестности",
+    "fr": "Granules de glace à proximité"
+  },
+  "hail": {
+    "en": "Hail",
+    "de": "Hagel",
+    "ru": "Град",
+    "fr": "Grêle"
+  },
+  "light_hail": {
+    "en": "Light hail",
+    "de": "Leichter Hagel",
+    "ru": "Слабый град",
+    "fr": "Grêle faible"
+  },
+  "heavy_hail": {
+    "en": "Heavy hail",
+    "de": "Starker Hagel",
+    "ru": "Сильный град",
+    "fr": "Grêle forte"
+  },
+  "vicinity_hail": {
+    "en": "Hail in the vicinity",
+    "de": "Hagel in der Nähe",
+    "ru": "Град в окрестности",
+    "fr": "Grêle à proximité"
+  },
+  "small_hail": {
+    "en": "Small hail",
+    "de": "Graupel",
+    "ru": "Снежная крупа",
+    "fr": "Grésil"
+  },
+  "light_small_hail": {
+    "en": "Light small hail",
+    "de": "Leichter Graupel",
+    "ru": "Слабая снежная крупа",
+    "fr": "Grésil faible"
+  },
+  "heavy_small_hail": {
+    "en": "Heavy small hail",
+    "de": "Starker Graupel",
+    "ru": "Сильная снежная крупа",
+    "fr": "Grésil fort"
+  },
+  "vicinity_small_hail": {
+    "en": "Small hail in the vicinity",
+    "de": "Graupel in der Nähe",
+    "ru": "Снежная крупа в окрестности",
+    "fr": "Grésil à proximité"
+  },
+  "unknown": {
+    "en": "Unknown precipitation",
+    "de": "Unbekannter Niederschlag",
+    "ru": "Осадки неизвестного типа",
+    "fr": "Précipitations inconnues"
+  },
+  "light_unknown": {
+    "en": "Light unknown precipitation",
+    "de": "Leichter unbekannter Niederschlag",
+    "ru": "Слабые осадки неизвестного типа",
+    "fr": "Précipitations inconnues faibles"
+  },
+  "heavy_unknown": {
+    "en": "Heavy unknown precipitation",
+    "de": "Starker unbekannter Niederschlag",
+    "ru": "Сильные осадки неизвестного типа",
+    "fr": "Précipitations inconnues fortes"
+  },
+  "vicinity_unknown": {
+    "en": "Unknown precipitation in the vicinity",
+    "de": "Unbekannter Niederschlag in der Nähe",
+    "ru": "Осадки неизвестного типа в окрестности",
+    "fr": "Précipitations inconnues à proximité"
+  },
+  "mist": {
+    "en": "Mist",
+    "de": "Feuchter Dunst",
+    "ru": "Дымка",
+    "fr": "Brume"
+  },
+  "light_mist": {
+    "en": "Light mist",
+    "de": "Leichter feuchter Dunst",
+    "ru": "Слабая дымка",
+    "fr": "Brume faible"
+  },
+  "heavy_mist": {
+    "en": "Heavy mist",
+    "de": "Starker feuchter Dunst",
+    "ru": "Сильная дымка",
+    "fr": "Brume forte"
+  },
+  "vicinity_mist": {
+    "en": "Mist in the vicinity",
+    "de": "Feuchter Dunst in der Nähe",
+    "ru": "Дымка в окрестности",
+    "fr": "Brume à proximité"
+  },
+  "fog": {
+    "en": "Fog",
+    "de": "Nebel",
+    "ru": "Туман",
+    "fr": "Brouillard"
+  },
+  "light_fog": {
+    "en": "Light fog",
+    "de": "Leichter Nebel",
+    "ru": "Слабый туман",
+    "fr": "Brouillard faible"
+  },
+  "heavy_fog": {
+    "en": "Heavy fog",
+    "de": "Dichter Nebel",
+    "ru": "Сильный туман",
+    "fr": "Brouillard fort"
+  },
+  "vicinity_fog": {
+    "en": "Fog in the vicinity",
+    "de": "Nebel in der Nähe",
+    "ru": "Туман в окрестности",
+    "fr": "Brouillard à proximité"
+  },
+  "smoke": {
+    "en": "Smoke",
+    "de": "Rauch",
+    "ru": "Дым",
+    "fr": "Fumée"
+  },
+  "light_smoke": {
+    "en": "Light smoke",
+    "de": "Leichter Rauch",
+    "ru": "Слабый дым",
+    "fr": "Fumée faible"
+  },
+  "heavy_smoke": {
+    "en": "Heavy smoke",
+    "de": "Starker Rauch",
+    "ru": "Сильный дым",
+    "fr": "Fumée forte"
+  },
+  "vicinity_smoke": {
+    "en": "Smoke in the vicinity",
+    "de": "Rauch in der Nähe",
+    "ru": "Дым в окрестности",
+    "fr": "Fumée à proximité"
+  },
+  "volcanic_ash": {
+    "en": "Volcanic ash",
+    "de": "Vulkanasche",
+    "ru": "Вулканический пепел",
+    "fr": "Cendres volcaniques"
+  },
+  "light_volcanic_ash": {
+    "en": "Light volcanic ash",
+    "de": "Leichte Vulkanasche",
+    "ru": "Слабый вулканический пепел",
+    "fr": "Cendres volcaniques faibles"
+  },
+  "heavy_volcanic_ash": {
+    "en": "Heavy volcanic ash",
+    "de": "Starke Vulkanasche",
+    "ru": "Сильный вулканический пепел",
+    "fr": "Cendres volcaniques fortes"
+  },
+  "vicinity_volcanic_ash": {
+    "en": "Volcanic ash in the vicinity",
+    "de": "Vulkanasche in der Nähe",
+    "ru": "Вулканический пепел в окрестности",
+    "fr": "Cendres volcaniques à proximité"
+  },
+  "dust": {
+    "en": "Widespread dust",
+    "de": "Ausgedehnter Staub",
+    "ru": "Пыльная мгла",
+    "fr": "Poussière généralisée"
+  },
+  "light_dust": {
+    "en": "Light widespread dust",
+    "de": "Leichter ausgedehnter Staub",
+    "ru": "Слабая пыльная мгла",
+    "fr": "Poussière généralisée faible"
+  },
+  "heavy_dust": {
+    "en": "Heavy widespread dust",
+    "de": "Starker ausgedehnter Staub",
+    "ru": "Сильная пыльная мгла",
+    "fr": "Poussière généralisée forte"
+  },
+  "vicinity_dust": {
+    "en": "Widespread dust in the vicinity",
+    "de": "Ausgedehnter Staub in der Nähe",
+    "ru": "Пыльная мгла в окрестности",
+    "fr": "Poussière généralisée à proximité"
+  },
+  "sand": {
+    "en": "Sand",
+    "de": "Sand",
+    "ru": "Песок",
+    "fr": "Sable"
+  },
+  "light_sand": {
+    "en": "Light sand",
+    "de": "Leichter Sand",
+    "ru": "Слабый песок",
+    "fr": "Sable faible"
+  },
+  "heavy_sand": {
+    "en": "Heavy sand",
+    "de": "Starker Sand",
+    "ru": "Сильный песок",
+    "fr": "Sable fort"
+  },
+  "vicinity_sand": {
+    "en": "Sand in the vicinity",
+    "de": "Sand in der Nähe",
+    "ru": "Песок в окрестности",
+    "fr": "Sable à proximité"
+  },
+  "haze": {
+    "en": "Haze",
+    "de": "Trockener Dunst",
+    "ru": "Мгла",
+    "fr": "Brume sèche"
+  },
+  "light_haze": {
+    "en": "Light haze",
+    "de": "Leichter trockener Dunst",
+    "ru": "Слабая мгла",
+    "fr": "Brume sèche faible"
+  },
+  "heavy_haze": {
+    "en": "Heavy haze",
+    "de": "Starker trockener Dunst",
+    "ru": "Сильная мгла",
+    "fr": "Brume sèche forte"
+  },
+  "vicinity_haze": {
+    "en": "Haze in the vicinity",
+    "de": "Trockener Dunst in der Nähe",
+    "ru": "Мгла в окрестности",
+    "fr": "Brume sèche à proximité"
+  },
+  "spray": {
+    "en": "Spray",
+    "de": "Gischt",
+    "ru": "Водяная пыль",
+    "fr": "Embruns"
+  },
+  "light_spray": {
+    "en": "Light spray",
+    "de": "Leichte Gischt",
+    "ru": "Слабая водяная пыль",
+    "fr": "Embruns faibles"
+  },
+  "heavy_spray": {
+    "en": "Heavy spray",
+    "de": "Starke Gischt",
+    "ru": "Сильная водяная пыль",
+    "fr": "Embruns forts"
+  },
+  "vicinity_spray": {
+    "en": "Spray in the vicinity",
+    "de": "Gischt in der Nähe",
+    "ru": "Водяная пыль в окрестности",
+    "fr": "Embruns à proximité"
+  },
+  "dust_whirls": {
+    "en": "Dust or sand whirls",
+    "de": "Staub- oder Sandwirbel",
+    "ru": "Пыльные или песчаные вихри",
+    "fr": "Tourbillons de poussière ou de sable"
+  },
+  "light_dust_whirls": {
+    "en": "Light dust or sand whirls",
+    "de": "Leichte Staub- oder Sandwirbel",
+    "ru": "Слабые пыльные или песчаные вихри",
+    "fr": "Tourbillons de poussière ou de sable faibles"
+  },
+  "heavy_dust_whirls": {
+    "en": "Heavy dust or sand whirls",
+    "de": "Starke Staub- oder Sandwirbel",
+    "ru": "Сильные пыльные или песчаные вихри",
+    "fr": "Tourbillons de poussière ou de sable forts"
+  },
+  "vicinity_dust_whirls": {
+    "en": "Dust or sand whirls in the vicinity",
+    "de": "Staub- oder Sandwirbel in der Nähe",
+    "ru": "Пыльные или песчаные вихри в окрестности",
+    "fr": "Tourbillons de poussière ou de sable à proximité"
+  },
+  "squalls": {
+    "en": "Squalls",
+    "de": "Böen",
+    "ru": "Шквалы",
+    "fr": "Grains"
+  },
+  "light_squalls": {
+    "en": "Light squalls",
+    "de": "Leichte Böen",
+    "ru": "Слабые шквалы",
+    "fr": "Grains faibles"
+  },
+  "heavy_squalls": {
+    "en": "Heavy squalls",
+    "de": "Starke Böen",
+    "ru": "Сильные шквалы",
+    "fr": "Grains forts"
+  },
+  "vicinity_squalls": {
+    "en": "Squalls in the vicinity",
+    "de": "Böen in der Nähe",
+    "ru": "Шквалы в окрестности",
+    "fr": "Grains à proximité"
+  },
+  "funnel_cloud": {
+    "en": "Funnel cloud",
+    "de": "Trichterwolke",
+    "ru": "Воронкообразное облако",
+    "fr": "Trombe"
+  },
+  "light_funnel_cloud": {
+    "en": "Light funnel cloud",
+    "de": "Leichte Trichterwolke",
+    "ru": "Слабое воронкообразное облако",
+    "fr": "Trombe faible"
+  },
+  "heavy_funnel_cloud": {
+    "en": "Heavy funnel cloud",
+    "de": "Starke Trichterwolke",
+    "ru": "Сильное воронкообразное облако",
+    "fr": "Trombe forte"
+  },
+  "vicinity_funnel_cloud": {
+    "en": "Funnel cloud in the vicinity",
+    "de": "Trichterwolke in der Nähe",
+    "ru": "Воронкообразное облако в окрестности",
+    "fr": "Trombe à proximité"
+  },
+  "sandstorm": {
+    "en": "Sandstorm",
+    "de": "Sandsturm",
+    "ru": "Песчаная буря",
+    "fr": "Tempête de sable"
+  },
+  "light_sandstorm": {
+    "en": "Light sandstorm",
+    "de": "Leichter Sandsturm",
+    "ru": "Слабая песчаная буря",
+    "fr": "Tempête de sable faible"
+  },
+  "heavy_sandstorm": {
+    "en": "Heavy sandstorm",
+    "de": "Starker Sandsturm",
+    "ru": "Сильная песчаная буря",
+    "fr": "Tempête de sable forte"
+  },
+  "vicinity_sandstorm": {
+    "en": "Sandstorm in the vicinity",
+    "de": "Sandsturm in der Nähe",
+    "ru": "Песчаная буря в окрестности",
+    "fr": "Tempête de sable à proximité"
+  },
+  "duststorm": {
+    "en": "Duststorm",
+    "de": "Staubsturm",
+    "ru": "Пыльная буря",
+    "fr": "Tempête de poussière"
+  },
+  "light_duststorm": {
+    "en": "Light duststorm",
+    "de": "Leichter Staubsturm",
+    "ru": "Слабая пыльная буря",
+    "fr": "Tempête de poussière faible"
+  },
+  "heavy_duststorm": {
+    "en": "Heavy duststorm",
+    "de": "Starker Staubsturm",
+    "ru": "Сильная пыльная буря",
+    "fr": "Tempête de poussière forte"
+  },
+  "vicinity_duststorm": {
+    "en": "Duststorm in the vicinity",
+    "de": "Staubsturm in der Nähe",
+    "ru": "Пыльная буря в окрестности",
+    "fr": "Tempête de poussière à proximité"
+  },
+  "thunderstorm": {
+    "en": "Thunderstorm",
+    "de": "Gewitter",
+    "ru": "Гроза",
+    "fr": "Orage"
+  },
+  "light_thunderstorm": {
+    "en": "Light thunderstorm",
+    "de": "Leichtes Gewitter",
+    "ru": "Слабая гроза",
+    "fr": "Orage faible"
+  },
+  "heavy_thunderstorm": {
+    "en": "Heavy thunderstorm",
+    "de": "Starkes Gewitter",
+    "ru": "Сильная гроза",
+    "fr": "Orage fort"
+  },
+  "vicinity_thunderstorm": {
+    "en": "Thunderstorm in the vicinity",
+    "de": "Gewitter in der Nähe",
+    "ru": "Гроза в окрестности",
+    "fr": "Orage à proximité"
+  },
+  "showers_rain": {
+    "en": "Rain showers",
+    "de": "Regenschauer",
+    "ru": "Ливневый дождь",
+    "fr": "Averses de pluie"
+  },
+  "light_showers_rain": {
+    "en": "Light rain showers",
+    "de": "Leichter Regenschauer",
+    "ru": "Слабый ливневый дождь",
+    "fr": "Averses de pluie faibles"
+  },
+  "heavy_showers_rain": {
+    "en": "Heavy rain showers",
+    "de": "Starker Regenschauer",
+    "ru": "Сильный ливневый дождь",
+    "fr": "Averses de pluie fortes"
+  },
+  "vicinity_showers_rain": {
+    "en": "Rain showers in the vicinity",
+    "de": "Regenschauer in der Nähe",
+    "ru": "Ливневый дождь в окрестности",
+    "fr": "Averses de pluie à proximité"
+  },
+  "showers_snow": {
+    "en": "Snow showers",
+    "de": "Schneeschauer",
+    "ru": "Ливневый снег",
+    "fr": "Averses de neige"
+  },
+  "light_showers_snow": {
+    "en": "Light snow showers",
+    "de": "Leichter Schneeschauer",
+    "ru": "Слабый ливневый снег",
+    "fr": "Averses de neige faibles"
+  },
+  "heavy_showers_snow": {
+    "en": "Heavy snow showers",
+    "de": "Starker Schneeschauer",
+    "ru": "Сильный ливневый снег",
+    "fr": "Averses de neige fortes"
+  },
+  "vicinity_showers_snow": {
+    "en": "Snow showers in the vicinity",
+    "de": "Schneeschauer in der Nähe",
+    "ru": "Ливневый снег в окрестности",
+    "fr": "Averses de neige à proximité"
+  },
+  "showers_drizzle": {
+    "en": "Drizzle showers",
+    "de": "Nieselschauer",
+    "ru": "Ливневая морось",
+    "fr": "Averses de bruine"
+  },
+  "light_showers_drizzle": {
+    "en": "Light drizzle showers",
+    "de": "Leichter Nieselschauer",
+    "ru": "Слабая ливневая морось",
+    "fr": "Averses de bruine faibles"
+  },
+  "heavy_showers_drizzle": {
+    "en": "Heavy drizzle showers",
+    "de": "Starker Nieselschauer",
+    "ru": "Сильная ливневая морось",
+    "fr": "Averses de bruine fortes"
+  },
+  "vicinity_showers_drizzle": {
+    "en": "Drizzle showers in the vicinity",
+    "de": "Nieselschauer in der Nähe",
+    "ru": "Ливневая морось в окрестности",
+    "fr": "Averses de bruine à proximité"
+  },
+  "thunderstorm_rain": {
+    "en": "Thunderstorm with rain",
+    "de": "Gewitter mit Regen",
+    "ru": "Гроза с дождём",
+    "fr": "Orage avec pluie"
+  },
+  "light_thunderstorm_rain": {
+    "en": "Light thunderstorm with rain",
+    "de": "Leichtes Gewitter mit Regen",
+    "ru": "Слабая гроза с дождём",
+    "fr": "Orage avec pluie faible"
+  },
+  "heavy_thunderstorm_rain": {
+    "en": "Heavy thunderstorm with rain",
+    "de": "Starkes Gewitter mit Regen",
+    "ru": "Сильная гроза с дождём",
+    "fr": "Orage avec pluie forte"
+  },
+  "vicinity_thunderstorm_rain": {
+    "en": "Thunderstorm with rain in the vicinity",
+    "de": "Gewitter mit Regen in der Nähe",
+    "ru": "Гроза с дождём в окрестности",
+    "fr": "Orage avec pluie à proximité"
+  },
+  "thunderstorm_snow": {
+    "en": "Thunderstorm with snow",
+    "de": "Gewitter mit Schnee",
+    "ru": "Гроза со снегом",
+    "fr": "Orage avec neige"
+  },
+  "light_thunderstorm_snow": {
+    "en": "Light thunderstorm with snow",
+    "de": "Leichtes Gewitter mit Schnee",
+    "ru": "Слабая гроза со снегом",
+    "fr": "Orage avec neige faible"
+  },
+  "heavy_thunderstorm_snow": {
+    "en": "Heavy thunderstorm with snow",
+    "de": "Starkes Gewitter mit Schnee",
+    "ru": "Сильная гроза со снегом",
+    "fr": "Orage avec neige forte"
+  },
+  "vicinity_thunderstorm_snow": {
+    "en": "Thunderstorm with snow in the vicinity",
+    "de": "Gewitter mit Schnee in der Nähe",
+    "ru": "Гроза со снегом в окрестности",
+    "fr": "Orage avec neige à proximité"
+  },
+  "thunderstorm_hail": {
+    "en": "Thunderstorm with hail",
+    "de": "Gewitter mit Hagel",
+    "ru": "Гроза с градом",
+    "fr": "Orage avec grêle"
+  },
+  "light_thunderstorm_hail": {
+    "en": "Light thunderstorm with hail",
+    "de": "Leichtes Gewitter mit Hagel",
+    "ru": "Слабая гроза с градом",
+    "fr": "Orage avec grêle faible"
+  },
+  "heavy_thunderstorm_hail": {
+    "en": "Heavy thunderstorm with hail",
+    "de": "Starkes Gewitter mit Hagel",
+    "ru": "Сильная гроза с градом",
+    "fr": "Orage avec grêle forte"
+  },
+  "vicinity_thunderstorm_hail": {
+    "en": "Thunderstorm with hail in the vicinity",
+    "de": "Gewitter mit Hagel in der Nähe",
+    "ru": "Гроза с градом в окрестности",
+    "fr": "Orage avec grêle à proximité"
+  },
+  "thunderstorm_small_hail": {
+    "en": "Thunderstorm with small hail",
+    "de": "Gewitter mit Graupel",
+    "ru": "Гроза со снежной крупой",
+    "fr": "Orage avec grésil"
+  },
+  "light_thunderstorm_small_hail": {
+    "en": "Light thunderstorm with small hail",
+    "de": "Leichtes Gewitter mit Graupel",
+    "ru": "Слабая гроза со снежной крупой",
+    "fr": "Orage avec grésil faible"
+  },
+  "heavy_thunderstorm_small_hail": {
+    "en": "Heavy thunderstorm with small hail",
+    "de": "Starkes Gewitter mit Graupel",
+    "ru": "Сильная гроза со снежной крупой",
+    "fr": "Orage avec grésil fort"
+  },
+  "vicinity_thunderstorm_small_hail": {
+    "en": "Thunderstorm with small hail in the vicinity",
+    "de": "Gewitter mit Graupel in der Nähe",
+    "ru": "Гроза со снежной крупой в окрестности",
+    "fr": "Orage avec grésil à proximité"
+  },
+  "freezing_rain": {
+    "en": "Freezing rain",
+    "de": "Gefrierender Regen",
+    "ru": "Переохлаждённый дождь",
+    "fr": "Pluie verglaçante"
+  },
+  "light_freezing_rain": {
+    "en": "Light freezing rain",
+    "de": "Leichter gefrierender Regen",
+    "ru": "Слабый переохлаждённый дождь",
+    "fr": "Pluie verglaçante faible"
+  },
+  "heavy_freezing_rain": {
+    "en": "Heavy freezing rain",
+    "de": "Starker gefrierender Regen",
+    "ru": "Сильный переохлаждённый дождь",
+    "fr": "Pluie verglaçante forte"
+  },
+  "vicinity_freezing_rain": {
+    "en": "Freezing rain in the vicinity",
+    "de": "Gefrierender Regen in der Nähe",
+    "ru": "Переохлаждённый дождь в окрестности",
+    "fr": "Pluie verglaçante à proximité"
+  },
+  "freezing_drizzle": {
+    "en": "Freezing drizzle",
+    "de": "Gefrierender Nieselregen",
+    "ru": "Переохлаждённая морось",
+    "fr": "Bruine verglaçante"
+  },
+  "light_freezing_drizzle": {
+    "en": "Light freezing drizzle",
+    "de": "Leichter gefrierender Nieselregen",
+    "ru": "Слабая переохлаждённая морось",
+    "fr": "Bruine verglaçante faible"
+  },
+  "heavy_freezing_drizzle": {
+    "en": "Heavy freezing drizzle",
+    "de": "Starker gefrierender Nieselregen",
+    "ru": "Сильная переохлаждённая морось",
+    "fr": "Bruine verglaçante forte"
+  },
+  "vicinity_freezing_drizzle": {
+    "en": "Freezing drizzle in the vicinity",
+    "de": "Gefrierender Nieselregen in der Nähe",
+    "ru": "Переохлаждённая морось в окрестности",
+    "fr": "Bruine verglaçante à proximité"
+  },
+  "freezing_fog": {
+    "en": "Freezing fog",
+    "de": "Gefrierender Nebel",
+    "ru": "Туман с изморозью",
+    "fr": "Brouillard givrant"
+  },
+  "light_freezing_fog": {
+    "en": "Light freezing fog",
+    "de": "Leichter gefrierender Nebel",
+    "ru": "Слабый туман с изморозью",
+    "fr": "Brouillard givrant faible"
+  },
+  "heavy_freezing_fog": {
+    "en": "Heavy freezing fog",
+    "de": "Starker gefrierender Nebel",
+    "ru": "Сильный туман с изморозью",
+    "fr": "Brouillard givrant fort"
+  },
+  "vicinity_freezing_fog": {
+    "en": "Freezing fog in the vicinity",
+    "de": "Gefrierender Nebel in der Nähe",
+    "ru": "Туман с изморозью в окрестности",
+    "fr": "Brouillard givrant à proximité"
+  },
+  "blowing_snow": {
+    "en": "Blowing snow",
+    "de": "Schneetreiben",
+    "ru": "Низовая метель",
+    "fr": "Chasse-neige élevée"
+  },
+  "light_blowing_snow": {
+    "en": "Light blowing snow",
+    "de": "Leichtes Schneetreiben",
+    "ru": "Слабая низовая метель",
+    "fr": "Chasse-neige élevée faible"
+  },
+  "heavy_blowing_snow": {
+    "en": "Heavy blowing snow",
+    "de": "Starkes Schneetreiben",
+    "ru": "Сильная низовая метель",
+    "fr": "Chasse-neige élevée forte"
+  },
+  "vicinity_blowing_snow": {
+    "en": "Blowing snow in the vicinity",
+    "de": "Schneetreiben in der Nähe",
+    "ru": "Низовая метель в окрестности",
+    "fr": "Chasse-neige élevée à proximité"
+  },
+  "blowing_sand": {
+    "en": "Blowing sand",
+    "de": "Sandtreiben",
+    "ru": "Низовой перенос песка",
+    "fr": "Chasse-sable élevée"
+  },
+  "light_blowing_sand": {
+    "en": "Light blowing sand",
+    "de": "Leichtes Sandtreiben",
+    "ru": "Слабый низовой перенос песка",
+    "fr": "Chasse-sable élevée faible"
+  },
+  "heavy_blowing_sand": {
+    "en": "Heavy blowing sand",
+    "de": "Starkes Sandtreiben",
+    "ru": "Сильный низовой перенос песка",
+    "fr": "Chasse-sable élevée forte"
+  },
+  "vicinity_blowing_sand": {
+    "en": "Blowing sand in the vicinity",
+    "de": "Sandtreiben in der Nähe",
+    "ru": "Низовой перенос песка в окрестности",
+    "fr": "Chasse-sable élevée à proximité"
+  },
+  "blowing_dust": {
+    "en": "Blowing widespread dust",
+    "de": "Staubtreiben",
+    "ru": "Низовой перенос пыли",
+    "fr": "Chasse-poussière élevée"
+  },
+  "light_blowing_dust": {
+    "en": "Light blowing widespread dust",
+    "de": "Leichtes Staubtreiben",
+    "ru": "Слабый низовой перенос пыли",
+    "fr": "Chasse-poussière élevée faible"
+  },
+  "heavy_blowing_dust": {
+    "en": "Heavy blowing widespread dust",
+    "de": "Starkes Staubtreiben",
+    "ru": "Сильный низовой перенос пыли",
+    "fr": "Chasse-poussière élevée forte"
+  },
+  "vicinity_blowing_dust": {
+    "en": "Blowing widespread dust in the vicinity",
+    "de": "Staubtreiben in der Nähe",
+    "ru": "Низовой перенос пыли в окрестности",
+    "fr": "Chasse-poussière élevée à proximité"
+  },
+  "low_drifting_snow": {
+    "en": "Low drifting snow",
+    "de": "Schneefegen",
+    "ru": "Позёмок",
+    "fr": "Chasse-neige basse"
+  },
+  "light_low_drifting_snow": {
+    "en": "Light low drifting snow",
+    "de": "Leichtes Schneefegen",
+    "ru": "Слабый позёмок",
+    "fr": "Chasse-neige basse faible"
+  },
+  "heavy_low_drifting_snow": {
+    "en": "Heavy low drifting snow",
+    "de": "Starkes Schneefegen",
+    "ru": "Сильный позёмок",
+    "fr": "Chasse-neige basse forte"
+  },
+  "vicinity_low_drifting_snow": {
+    "en": "Low drifting snow in the vicinity",
+    "de": "Schneefegen in der Nähe",
+    "ru": "Позёмок в окрестности",
+    "fr": "Chasse-neige basse à proximité"
+  },
+  "low_drifting_sand": {
+    "en": "Low drifting sand",
+    "de": "Sandfegen",
+    "ru": "Песчаный позёмок",
+    "fr": "Chasse-sable basse"
+  },
+  "light_low_drifting_sand": {
+    "en": "Light low drifting sand",
+    "de": "Leichtes Sandfegen",
+    "ru": "Слабый песчаный позёмок",
+    "fr": "Chasse-sable basse faible"
+  },
+  "heavy_low_drifting_sand": {
+    "en": "Heavy low drifting sand",
+    "de": "Starkes Sandfegen",
+    "ru": "Сильный песчаный позёмок",
+    "fr": "Chasse-sable basse forte"
+  },
+  "vicinity_low_drifting_sand": {
+    "en": "Low drifting sand in the vicinity",
+    "de": "Sandfegen in der Nähe",
+    "ru": "Песчаный позёмок в окрестности",
+    "fr": "Chasse-sable basse à proximité"
+  },
+  "shallow_fog": {
+    "en": "Shallow fog",
+    "de": "Flacher Nebel",
+    "ru": "Поземный туман",
+    "fr": "Brouillard mince"
+  },
+  "light_shallow_fog": {
+    "en": "Light shallow fog",
+    "de": "Leichter flacher Nebel",
+    "ru": "Слабый поземный туман",
+    "fr": "Brouillard mince faible"
+  },
+  "heavy_shallow_fog": {
+    "en": "Heavy shallow fog",
+    "de": "Starker flacher Nebel",
+    "ru": "Сильный поземный туман",
+    "fr": "Brouillard mince fort"
+  },
+  "vicinity_shallow_fog": {
+    "en": "Shallow fog in the vicinity",
+    "de": "Flacher Nebel in der Nähe",
+    "ru": "Поземный туман в окрестности",
+    "fr": "Brouillard mince à proximité"
+  },
+  "patches_fog": {
+    "en": "Fog patches",
+    "de": "Nebelbänke",
+    "ru": "Туман местами",
+    "fr": "Bancs de brouillard"
+  },
+  "light_patches_fog": {
+    "en": "Light fog patches",
+    "de": "Leichte Nebelbänke",
+    "ru": "Слабый туман местами",
+    "fr": "Bancs de brouillard faibles"
+  },
+  "heavy_patches_fog": {
+    "en": "Heavy fog patches",
+    "de": "Dichte Nebelbänke",
+    "ru": "Сильный туман местами",
+    "fr": "Bancs de brouillard forts"
+  },
+  "vicinity_patches_fog": {
+    "en": "Fog patches in the vicinity",
+    "de": "Nebelbänke in der Nähe",
+    "ru": "Туман местами в окрестности",
+    "fr": "Bancs de brouillard à proximité"
+  },
+  "partial_fog": {
+    "en": "Partial fog",
+    "de": "Teilweiser Nebel",
+    "ru": "Туман частично",
+    "fr": "Brouillard partiel"
+  },
+  "light_partial_fog": {
+    "en": "Light partial fog",
+    "de": "Leichter teilweiser Nebel",
+    "ru": "Слабый туман частично",
+    "fr": "Brouillard partiel faible"
+  },
+  "heavy_partial_fog": {
+    "en": "Heavy partial fog",
+    "de": "Starker teilweiser Nebel",
+    "ru": "Сильный туман частично",
+    "fr": "Brouillard partiel fort"
+  },
+  "vicinity_partial_fog": {
+    "en": "Partial fog in the vicinity",
+    "de": "Teilweiser Nebel in der Nähe",
+    "ru": "Туман частично в окрестности",
+    "fr": "Brouillard partiel à proximité"
+  },
+  "vicinity_showers": {
+    "en": "Showers in the vicinity",
+    "de": "Schauer in der Nähe",
+    "ru": "Ливневые осадки в окрестности",
+    "fr": "Averses à proximité"
+  },
+  "rain_snow": {
+    "en": "Rain and snow",
+    "de": "Regen und Schnee",
+    "ru": "Дождь со снегом",
+    "fr": "Pluie et neige"
+  },
+  "light_rain_snow": {
+    "en": "Light rain and snow",
+    "de": "Leichter Regen und Schnee",
+    "ru": "Слабый дождь со снегом",
+    "fr": "Pluie et neige faibles"
+  },
+  "heavy_rain_snow": {
+    "en": "Heavy rain and snow",
+    "de": "Starker Regen und Schnee",
+    "ru": "Сильный дождь со снегом",
+    "fr": "Pluie et neige fortes"
+  },
+  "snow_rain": {
+    "en": "Snow and rain",
+    "de": "Schnee und Regen",
+    "ru": "Снег с дождём",
+    "fr": "Neige et pluie"
+  },
+  "light_snow_rain": {
+    "en": "Light snow and rain",
+    "de": "Leichter Schnee und Regen",
+    "ru": "Слабый снег с дождём",
+    "fr": "Neige et pluie faibles"
+  },
+  "heavy_snow_rain": {
+    "en": "Heavy snow and rain",
+    "de": "Starker Schnee und Regen",
+    "ru": "Сильный снег с дождём",
+    "fr": "Neige et pluie fortes"
+  },
+  "rain_drizzle": {
+    "en": "Rain and drizzle",
+    "de": "Regen und Nieselregen",
+    "ru": "Дождь с моросью",
+    "fr": "Pluie et bruine"
+  },
+  "light_rain_drizzle": {
+    "en": "Light rain and drizzle",
+    "de": "Leichter Regen und Nieselregen",
+    "ru": "Слабый дождь с моросью",
+    "fr": "Pluie et bruine faibles"
+  },
+  "heavy_rain_drizzle": {
+    "en": "Heavy rain and drizzle",
+    "de": "Starker Regen und Nieselregen",
+    "ru": "Сильный дождь с моросью",
+    "fr": "Pluie et bruine fortes"
+  },
+  "drizzle_rain": {
+    "en": "Drizzle and rain",
+    "de": "Nieselregen und Regen",
+    "ru": "Морось с дождём",
+    "fr": "Bruine et pluie"
+  },
+  "light_drizzle_rain": {
+    "en": "Light drizzle and rain",
+    "de": "Leichter Nieselregen und Regen",
+    "ru": "Слабая морось с дождём",
+    "fr": "Bruine et pluie faibles"
+  },
+  "heavy_drizzle_rain": {
+    "en": "Heavy drizzle and rain",
+    "de": "Starker Nieselregen und Regen",
+    "ru": "Сильная морось с дождём",
+    "fr": "Bruine et pluie fortes"
+  },
+  "snow_ice_pellets": {
+    "en": "Snow and ice pellets",
+    "de": "Schnee und Eiskörner",
+    "ru": "Снег с ледяной крупой",
+    "fr": "Neige et granules de glace"
+  },
+  "light_snow_ice_pellets": {
+    "en": "Light snow and ice pellets",
+    "de": "Leichter Schnee und Eiskörner",
+    "ru": "Слабый снег с ледяной крупой",
+    "fr": "Neige et granules de glace faibles"
+  },
+  "heavy_snow_ice_pellets": {
+    "en": "Heavy snow and ice pellets",
+    "de": "Starker Schnee und Eiskörner",
+    "ru": "Сильный снег с ледяной крупой",
+    "fr": "Neige et granules de glace forts"
+  },
+  "rain_ice_pellets": {
+    "en": "Rain and ice pellets",
+    "de": "Regen und Eiskörner",
+    "ru": "Дождь с ледяной крупой",
+    "fr": "Pluie et granules de glace"
+  },
+  "light_rain_ice_pellets": {
+    "en": "Light rain and ice pellets",
+    "de": "Leichter Regen und Eiskörner",
+    "ru": "Слабый дождь с ледяной крупой",
+    "fr": "Pluie et granules de glace faibles"
+  },
+  "heavy_rain_ice_pellets": {
+    "en": "Heavy rain and ice pellets",
+    "de": "Starker Regen und Eiskörner",
+    "ru": "Сильный дождь с ледяной крупой",
+    "fr": "Pluie et granules de glace forts"
+  },
+  "recent_rain": {
+    "en": "Recent rain",
+    "de": "Kürzlicher Regen",
+    "ru": "Недавний дождь",
+    "fr": "Pluie récente"
+  },
+  "recent_snow": {
+    "en": "Recent snow",
+    "de": "Kürzlicher Schnee",
+    "ru": "Недавний снег",
+    "fr": "Neige récente"
+  },
+  "recent_drizzle": {
+    "en": "Recent drizzle",
+    "de": "Kürzlicher Nieselregen",
+    "ru": "Недавняя морось",
+    "fr": "Bruine récente"
+  },
+  "recent_showers": {
+    "en": "Recent showers",
+    "de": "Kürzliche Schauer",
+    "ru": "Недавние ливневые осадки",
+    "fr": "Averses récentes"
+  },
+  "recent_fog": {
+    "en": "Recent fog",
+    "de": "Kürzlicher Nebel",
+    "ru": "Недавний туман",
+    "fr": "Brouillard récent"
+  },
+  "recent_hail": {
+    "en": "Recent hail",
+    "de": "Kürzlicher Hagel",
+    "ru": "Недавний град",
+    "fr": "Grêle récente"
+  },
+  "recent_small_hail": {
+    "en": "Recent small hail",
+    "de": "Kürzlicher Graupel",
+    "ru": "Недавняя снежная крупа",
+    "fr": "Grésil récent"
+  },
+  "recent_ice_pellets": {
+    "en": "Recent ice pellets",
+    "de": "Kürzliche Eiskörner",
+    "ru": "Недавняя ледяная крупа",
+    "fr": "Granules de glace récents"
+  },
+  "recent_thunderstorm": {
+    "en": "Recent thunderstorm",
+    "de": "Kürzliches Gewitter",
+    "ru": "Недавняя гроза",
+    "fr": "Orage récent"
+  },
+  "recent_freezing_rain": {
+    "en": "Recent freezing rain",
+    "de": "Kürzlicher gefrierender Regen",
+    "ru": "Недавний переохлаждённый дождь",
+    "fr": "Pluie verglaçante récente"
+  },
+  "recent_blowing_snow": {
+    "en": "Recent blowing snow",
+    "de": "Kürzliches Schneetreiben",
+    "ru": "Недавняя низовая метель",
+    "fr": "Chasse-neige élevée récente"
+  }
+}

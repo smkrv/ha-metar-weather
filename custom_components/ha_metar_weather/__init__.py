@@ -1,7 +1,7 @@
 """
-The HA METAR Weather integration.
+The METAR Weather integration.
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @github: https://github.com/smkrv/ha-metar-weather
 @source: https://github.com/smkrv/ha-metar-weather
 """
@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the HA METAR Weather component."""
+    """Set up the METAR Weather component."""
     hass.data.setdefault(DOMAIN, {})
 
     try:
@@ -284,7 +284,7 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up HA METAR Weather from a config entry."""
+    """Set up METAR Weather from a config entry."""
     # Ensure storage is initialized (handles reload case where async_setup isn't called again)
     if "storage" not in hass.data.get(DOMAIN, {}):
         _LOGGER.debug("Storage not found, initializing (possible reload scenario)")

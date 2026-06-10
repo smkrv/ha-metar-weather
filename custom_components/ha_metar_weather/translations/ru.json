@@ -1,253 +1,512 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "Настройка HA METAR Weather",
-                "description": "Настройка мониторинга метеосводок METAR.\n\nИсточники данных (NOAA):\n• Основной: Aviation Weather Center API (aviationweather.gov)\n• Резервный: NOAA FTP (tgftp.nws.noaa.gov)\n\nПожалуйста, убедитесь, что вы соблюдаете условия использования данных NOAA.",
-                "data": {
-                    "icao": "ICAO код аэропорта",
-                    "terms_accepted": "Я принимаю условия использования источника данных"
-                }
-            },
-            "units": {
-                "title": "Настройка единиц измерения",
-                "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.\nВыберите 'Native (METAR)' для стандартных авиационных единиц (узлы, мили, футы, гПа).",
-                "data": {
-                    "temperature_unit": "Температура",
-                    "wind_speed_unit": "Скорость ветра",
-                    "visibility_unit": "Видимость",
-                    "pressure_unit": "Давление",
-                    "altitude_unit": "Высота облаков / Высота"
-                }
-            }
-        },
-        "error": {
-            "invalid_icao": "Неверный формат ICAO кода",
-            "terms_not_accepted": "Вы должны принять условия использования",
-            "station_exists": "Эта станция уже настроена",
-            "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции",
-            "cannot_connect": "Не удалось подключиться к станции",
-            "unknown": "Непредвиденная ошибка"
+  "config": {
+    "step": {
+      "user": {
+        "title": "Настройка METAR Weather",
+        "description": "Настройка мониторинга метеосводок METAR.\n\nИсточники данных (NOAA):\n• Основной: Aviation Weather Center API (aviationweather.gov)\n• Резервный: NOAA FTP (tgftp.nws.noaa.gov)\n\nПожалуйста, убедитесь, что вы соблюдаете условия использования данных NOAA.",
+        "data": {
+          "icao": "ICAO код аэропорта",
+          "terms_accepted": "Я принимаю условия использования источника данных"
         }
+      },
+      "units": {
+        "title": "Настройка единиц измерения",
+        "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.\nВыберите 'Native (METAR)' для стандартных авиационных единиц (узлы, мили, футы, гПа).",
+        "data": {
+          "temperature_unit": "Температура",
+          "wind_speed_unit": "Скорость ветра",
+          "visibility_unit": "Видимость",
+          "pressure_unit": "Давление",
+          "altitude_unit": "Высота облаков / Высота"
+        }
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "Настройки METAR",
-                "menu_options": {
-                    "units": "Настройка единиц измерения",
-                    "stations": "Управление станциями",
-                    "station_remove": "Удалить станцию"
-                }
-            },
-            "units": {
-                "title": "Настройка единиц измерения",
-                "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.\nВыберите 'Native (METAR)' для стандартных авиационных единиц (узлы, мили, футы, гПа).",
-                "data": {
-                    "temperature_unit": "Температура",
-                    "wind_speed_unit": "Скорость ветра",
-                    "visibility_unit": "Видимость",
-                    "pressure_unit": "Давление",
-                    "altitude_unit": "Высота облаков / Высота"
-                }
-            },
-            "stations": {
-                "title": "Управление станциями",
-                "description": "Текущие настроенные станции:\n{stations}"
-            },
-            "station_add": {
-                "title": "Добавить станцию",
-                "description": "Введите ICAO код для новой станции",
-                "data": {
-                    "icao": "ICAO код аэропорта"
-                }
-            },
-            "station_configure": {
-                "title": "Конфигурация станции",
-                "description": "Хотите добавить ещё одну станцию?",
-                "data": {
-                    "add_another": "Добавить ещё станцию"
-                }
-            },
-            "station_remove": {
-                "title": "Удалить станцию",
-                "description": "Выберите станцию для удаления. Примечание: Должна остаться хотя бы одна станция.",
-                "data": {
-                    "station": "Станция для удаления"
-                }
-            }
-        },
-        "error": {
-            "cannot_remove_last": "Невозможно удалить последнюю станцию",
-            "station_exists": "Эта станция уже добавлена в этой конфигурации",
-            "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции"
-        }
-    },
-    "exceptions": {
-        "invalid_icao_format": {
-            "message": "Неверный формат ICAO кода: {station}"
-        },
-        "station_not_found": {
-            "message": "Станция {station} не найдена ни в одной конфигурации"
-        },
-        "station_not_configured": {
-            "message": "Станция {station} не настроена"
-        },
-        "storage_not_initialized": {
-            "message": "Хранилище не инициализировано"
-        },
-        "clear_history_timeout": {
-            "message": "Таймаут при очистке истории для станции {station}"
-        },
-        "clear_history_failed": {
-            "message": "Не удалось очистить историю для станции {station}: {error}"
-        }
-    },
-    "services": {
-        "update_station": {
-            "name": "Обновить станцию",
-            "description": "Принудительное обновление данных METAR для указанной станции.",
-            "fields": {
-                "station": {
-                    "name": "Станция",
-                    "description": "ICAO код станции для обновления"
-                }
-            }
-        },
-        "clear_history": {
-            "name": "Очистить историю",
-            "description": "Очистить историю данных для указанной станции.",
-            "fields": {
-                "station": {
-                    "name": "Станция",
-                    "description": "ICAO код станции для очистки истории"
-                }
-            }
-        }
-    },
-    "entity": {
-        "sensor": {
-            "temperature": {
-                "name": "Температура",
-                "state_attributes": {
-                    "trend": {
-                        "state": {
-                            "rising": "Повышается",
-                            "falling": "Понижается",
-                            "stable": "Стабильная"
-                        }
-                    }
-                }
-            },
-            "dew_point": {
-                "name": "Точка росы"
-            },
-            "wind_speed": {
-                "name": "Скорость ветра"
-            },
-            "wind_direction": {
-                "name": "Направление ветра"
-            },
-            "wind_gust": {
-                "name": "Порывы ветра",
-                "state_attributes": {
-                    "trend": {
-                        "state": {
-                            "rising": "Усиливаются",
-                            "falling": "Ослабевают",
-                            "stable": "Стабильные"
-                        }
-                    }
-                }
-            },
-            "wind_variable_direction": {
-                "name": "Переменное направление ветра",
-                "state_attributes": {
-                    "from_direction": { "name": "От направления" },
-                    "to_direction": { "name": "До направления" }
-                }
-            },
-            "visibility": {
-                "name": "Видимость"
-            },
-            "pressure": {
-                "name": "Давление"
-            },
-            "humidity": {
-                "name": "Относительная влажность"
-            },
-            "weather": {
-                "name": "Погодные условия"
-            },
-            "cloud_coverage": {
-                "name": "Облачность"
-            },
-            "cloud_layers": {
-                "name": "Слои облачности"
-            },
-            "raw_metar": {
-                "name": "Исходная METAR"
-            },
-            "report_type": {
-                "name": "Тип сводки"
-            },
-            "auto_indicator": {
-                "name": "Автоматический индикатор"
-            },
-            "cavok": {
-                "name": "CAVOK"
-            },
-            "runway_states": {
-                "name": "Состояние всех ВПП"
-            },
-            "runway_state": {
-                "name": "Состояние ВПП",
-                "state_attributes": {
-                    "surface": {
-                        "state": {
-                            "clear_and_dry": "Чистая и сухая",
-                            "damp": "Влажная",
-                            "wet": "Мокрая",
-                            "rime": "Изморозь или иней",
-                            "dry_snow": "Сухой снег",
-                            "wet_snow": "Мокрый снег",
-                            "slush": "Слякоть",
-                            "ice": "Лёд",
-                            "compacted_snow": "Утрамбованный снег",
-                            "frozen_ruts": "Замёрзшие колеи"
-                        }
-                    },
-                    "coverage": {
-                        "state": {
-                            "less_10": "Менее 10%",
-                            "11_25": "11-25%",
-                            "26_50": "26-50%",
-                            "51_100": "51-100%"
-                        }
-                    },
-                    "friction": {
-                        "state": {
-                            "poor": "Плохая",
-                            "medium_poor": "Средняя/Плохая",
-                            "medium": "Средняя",
-                            "medium_good": "Средняя/Хорошая",
-                            "good": "Хорошая"
-                        }
-                    }
-                }
-            },
-            "recent_weather": {
-                "name": "Недавняя погода"
-            },
-            "wind_shear": {
-                "name": "Сдвиг ветра"
-            },
-            "trend": {
-                "name": "Тенденция"
-            },
-            "remarks": {
-                "name": "Примечания"
-            }
-        }
+    "error": {
+      "invalid_icao": "Неверный формат ICAO кода",
+      "terms_not_accepted": "Вы должны принять условия использования",
+      "station_exists": "Эта станция уже настроена",
+      "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции",
+      "cannot_connect": "Не удалось подключиться к станции",
+      "unknown": "Непредвиденная ошибка"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки METAR",
+        "menu_options": {
+          "units": "Настройка единиц измерения",
+          "stations": "Управление станциями",
+          "station_remove": "Удалить станцию"
+        }
+      },
+      "units": {
+        "title": "Настройка единиц измерения",
+        "description": "Выберите единицы измерения для отображения данных.\nВыберите 'Auto' для использования настроек Home Assistant.\nВыберите 'Native (METAR)' для стандартных авиационных единиц (узлы, мили, футы, гПа).",
+        "data": {
+          "temperature_unit": "Температура",
+          "wind_speed_unit": "Скорость ветра",
+          "visibility_unit": "Видимость",
+          "pressure_unit": "Давление",
+          "altitude_unit": "Высота облаков / Высота"
+        }
+      },
+      "stations": {
+        "title": "Управление станциями",
+        "description": "Текущие настроенные станции:\n{stations}"
+      },
+      "station_add": {
+        "title": "Добавить станцию",
+        "description": "Введите ICAO код для новой станции",
+        "data": {
+          "icao": "ICAO код аэропорта"
+        }
+      },
+      "station_configure": {
+        "title": "Конфигурация станции",
+        "description": "Хотите добавить ещё одну станцию?",
+        "data": {
+          "add_another": "Добавить ещё станцию"
+        }
+      },
+      "station_remove": {
+        "title": "Удалить станцию",
+        "description": "Выберите станцию для удаления. Примечание: Должна остаться хотя бы одна станция.",
+        "data": {
+          "station": "Станция для удаления"
+        }
+      }
+    },
+    "error": {
+      "cannot_remove_last": "Невозможно удалить последнюю станцию",
+      "station_exists": "Эта станция уже добавлена в этой конфигурации",
+      "station_exists_other_entry": "Эта станция уже настроена в другой конфигурации интеграции"
+    }
+  },
+  "exceptions": {
+    "invalid_icao_format": {
+      "message": "Неверный формат ICAO кода: {station}"
+    },
+    "station_not_found": {
+      "message": "Станция {station} не найдена ни в одной конфигурации"
+    },
+    "station_not_configured": {
+      "message": "Станция {station} не настроена"
+    },
+    "storage_not_initialized": {
+      "message": "Хранилище не инициализировано"
+    },
+    "clear_history_timeout": {
+      "message": "Таймаут при очистке истории для станции {station}"
+    },
+    "clear_history_failed": {
+      "message": "Не удалось очистить историю для станции {station}: {error}"
+    }
+  },
+  "services": {
+    "update_station": {
+      "name": "Обновить станцию",
+      "description": "Принудительное обновление данных METAR для указанной станции.",
+      "fields": {
+        "station": {
+          "name": "Станция",
+          "description": "ICAO код станции для обновления"
+        }
+      }
+    },
+    "clear_history": {
+      "name": "Очистить историю",
+      "description": "Очистить историю данных для указанной станции.",
+      "fields": {
+        "station": {
+          "name": "Станция",
+          "description": "ICAO код станции для очистки истории"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "temperature": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "dew_point": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "wind_speed": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "wind_gust": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "wind_direction": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "visibility": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "pressure": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "humidity": {
+        "state_attributes": {
+          "trend": {
+            "state": {
+              "rising": "Растёт",
+              "falling": "Падает",
+              "stable": "Стабильно",
+              "veering": "По часовой",
+              "backing": "Против часовой"
+            }
+          }
+        }
+      },
+      "weather": {
+        "state": {
+          "clear": "Без особых явлений",
+          "drizzle": "Морось",
+          "light_drizzle": "Слабая морось",
+          "heavy_drizzle": "Сильная морось",
+          "vicinity_drizzle": "Морось в окрестности",
+          "rain": "Дождь",
+          "light_rain": "Слабый дождь",
+          "heavy_rain": "Сильный дождь",
+          "vicinity_rain": "Дождь в окрестности",
+          "snow": "Снег",
+          "light_snow": "Слабый снег",
+          "heavy_snow": "Сильный снег",
+          "vicinity_snow": "Снег в окрестности",
+          "snow_grains": "Снежные зёрна",
+          "light_snow_grains": "Слабые снежные зёрна",
+          "heavy_snow_grains": "Сильные снежные зёрна",
+          "vicinity_snow_grains": "Снежные зёрна в окрестности",
+          "ice_crystals": "Ледяные иглы",
+          "light_ice_crystals": "Слабые ледяные иглы",
+          "heavy_ice_crystals": "Сильные ледяные иглы",
+          "vicinity_ice_crystals": "Ледяные иглы в окрестности",
+          "ice_pellets": "Ледяная крупа",
+          "light_ice_pellets": "Слабая ледяная крупа",
+          "heavy_ice_pellets": "Сильная ледяная крупа",
+          "vicinity_ice_pellets": "Ледяная крупа в окрестности",
+          "hail": "Град",
+          "light_hail": "Слабый град",
+          "heavy_hail": "Сильный град",
+          "vicinity_hail": "Град в окрестности",
+          "small_hail": "Снежная крупа",
+          "light_small_hail": "Слабая снежная крупа",
+          "heavy_small_hail": "Сильная снежная крупа",
+          "vicinity_small_hail": "Снежная крупа в окрестности",
+          "unknown": "Осадки неизвестного типа",
+          "light_unknown": "Слабые осадки неизвестного типа",
+          "heavy_unknown": "Сильные осадки неизвестного типа",
+          "vicinity_unknown": "Осадки неизвестного типа в окрестности",
+          "mist": "Дымка",
+          "light_mist": "Слабая дымка",
+          "heavy_mist": "Сильная дымка",
+          "vicinity_mist": "Дымка в окрестности",
+          "fog": "Туман",
+          "light_fog": "Слабый туман",
+          "heavy_fog": "Сильный туман",
+          "vicinity_fog": "Туман в окрестности",
+          "smoke": "Дым",
+          "light_smoke": "Слабый дым",
+          "heavy_smoke": "Сильный дым",
+          "vicinity_smoke": "Дым в окрестности",
+          "volcanic_ash": "Вулканический пепел",
+          "light_volcanic_ash": "Слабый вулканический пепел",
+          "heavy_volcanic_ash": "Сильный вулканический пепел",
+          "vicinity_volcanic_ash": "Вулканический пепел в окрестности",
+          "dust": "Пыльная мгла",
+          "light_dust": "Слабая пыльная мгла",
+          "heavy_dust": "Сильная пыльная мгла",
+          "vicinity_dust": "Пыльная мгла в окрестности",
+          "sand": "Песок",
+          "light_sand": "Слабый песок",
+          "heavy_sand": "Сильный песок",
+          "vicinity_sand": "Песок в окрестности",
+          "haze": "Мгла",
+          "light_haze": "Слабая мгла",
+          "heavy_haze": "Сильная мгла",
+          "vicinity_haze": "Мгла в окрестности",
+          "spray": "Водяная пыль",
+          "light_spray": "Слабая водяная пыль",
+          "heavy_spray": "Сильная водяная пыль",
+          "vicinity_spray": "Водяная пыль в окрестности",
+          "dust_whirls": "Пыльные или песчаные вихри",
+          "light_dust_whirls": "Слабые пыльные или песчаные вихри",
+          "heavy_dust_whirls": "Сильные пыльные или песчаные вихри",
+          "vicinity_dust_whirls": "Пыльные или песчаные вихри в окрестности",
+          "squalls": "Шквалы",
+          "light_squalls": "Слабые шквалы",
+          "heavy_squalls": "Сильные шквалы",
+          "vicinity_squalls": "Шквалы в окрестности",
+          "funnel_cloud": "Воронкообразное облако",
+          "light_funnel_cloud": "Слабое воронкообразное облако",
+          "heavy_funnel_cloud": "Сильное воронкообразное облако",
+          "vicinity_funnel_cloud": "Воронкообразное облако в окрестности",
+          "sandstorm": "Песчаная буря",
+          "light_sandstorm": "Слабая песчаная буря",
+          "heavy_sandstorm": "Сильная песчаная буря",
+          "vicinity_sandstorm": "Песчаная буря в окрестности",
+          "duststorm": "Пыльная буря",
+          "light_duststorm": "Слабая пыльная буря",
+          "heavy_duststorm": "Сильная пыльная буря",
+          "vicinity_duststorm": "Пыльная буря в окрестности",
+          "thunderstorm": "Гроза",
+          "light_thunderstorm": "Слабая гроза",
+          "heavy_thunderstorm": "Сильная гроза",
+          "vicinity_thunderstorm": "Гроза в окрестности",
+          "showers_rain": "Ливневый дождь",
+          "light_showers_rain": "Слабый ливневый дождь",
+          "heavy_showers_rain": "Сильный ливневый дождь",
+          "vicinity_showers_rain": "Ливневый дождь в окрестности",
+          "showers_snow": "Ливневый снег",
+          "light_showers_snow": "Слабый ливневый снег",
+          "heavy_showers_snow": "Сильный ливневый снег",
+          "vicinity_showers_snow": "Ливневый снег в окрестности",
+          "showers_drizzle": "Ливневая морось",
+          "light_showers_drizzle": "Слабая ливневая морось",
+          "heavy_showers_drizzle": "Сильная ливневая морось",
+          "vicinity_showers_drizzle": "Ливневая морось в окрестности",
+          "thunderstorm_rain": "Гроза с дождём",
+          "light_thunderstorm_rain": "Слабая гроза с дождём",
+          "heavy_thunderstorm_rain": "Сильная гроза с дождём",
+          "vicinity_thunderstorm_rain": "Гроза с дождём в окрестности",
+          "thunderstorm_snow": "Гроза со снегом",
+          "light_thunderstorm_snow": "Слабая гроза со снегом",
+          "heavy_thunderstorm_snow": "Сильная гроза со снегом",
+          "vicinity_thunderstorm_snow": "Гроза со снегом в окрестности",
+          "thunderstorm_hail": "Гроза с градом",
+          "light_thunderstorm_hail": "Слабая гроза с градом",
+          "heavy_thunderstorm_hail": "Сильная гроза с градом",
+          "vicinity_thunderstorm_hail": "Гроза с градом в окрестности",
+          "thunderstorm_small_hail": "Гроза со снежной крупой",
+          "light_thunderstorm_small_hail": "Слабая гроза со снежной крупой",
+          "heavy_thunderstorm_small_hail": "Сильная гроза со снежной крупой",
+          "vicinity_thunderstorm_small_hail": "Гроза со снежной крупой в окрестности",
+          "freezing_rain": "Переохлаждённый дождь",
+          "light_freezing_rain": "Слабый переохлаждённый дождь",
+          "heavy_freezing_rain": "Сильный переохлаждённый дождь",
+          "vicinity_freezing_rain": "Переохлаждённый дождь в окрестности",
+          "freezing_drizzle": "Переохлаждённая морось",
+          "light_freezing_drizzle": "Слабая переохлаждённая морось",
+          "heavy_freezing_drizzle": "Сильная переохлаждённая морось",
+          "vicinity_freezing_drizzle": "Переохлаждённая морось в окрестности",
+          "freezing_fog": "Туман с изморозью",
+          "light_freezing_fog": "Слабый туман с изморозью",
+          "heavy_freezing_fog": "Сильный туман с изморозью",
+          "vicinity_freezing_fog": "Туман с изморозью в окрестности",
+          "blowing_snow": "Низовая метель",
+          "light_blowing_snow": "Слабая низовая метель",
+          "heavy_blowing_snow": "Сильная низовая метель",
+          "vicinity_blowing_snow": "Низовая метель в окрестности",
+          "blowing_sand": "Низовой перенос песка",
+          "light_blowing_sand": "Слабый низовой перенос песка",
+          "heavy_blowing_sand": "Сильный низовой перенос песка",
+          "vicinity_blowing_sand": "Низовой перенос песка в окрестности",
+          "blowing_dust": "Низовой перенос пыли",
+          "light_blowing_dust": "Слабый низовой перенос пыли",
+          "heavy_blowing_dust": "Сильный низовой перенос пыли",
+          "vicinity_blowing_dust": "Низовой перенос пыли в окрестности",
+          "low_drifting_snow": "Позёмок",
+          "light_low_drifting_snow": "Слабый позёмок",
+          "heavy_low_drifting_snow": "Сильный позёмок",
+          "vicinity_low_drifting_snow": "Позёмок в окрестности",
+          "low_drifting_sand": "Песчаный позёмок",
+          "light_low_drifting_sand": "Слабый песчаный позёмок",
+          "heavy_low_drifting_sand": "Сильный песчаный позёмок",
+          "vicinity_low_drifting_sand": "Песчаный позёмок в окрестности",
+          "shallow_fog": "Поземный туман",
+          "light_shallow_fog": "Слабый поземный туман",
+          "heavy_shallow_fog": "Сильный поземный туман",
+          "vicinity_shallow_fog": "Поземный туман в окрестности",
+          "patches_fog": "Туман местами",
+          "light_patches_fog": "Слабый туман местами",
+          "heavy_patches_fog": "Сильный туман местами",
+          "vicinity_patches_fog": "Туман местами в окрестности",
+          "partial_fog": "Туман частично",
+          "light_partial_fog": "Слабый туман частично",
+          "heavy_partial_fog": "Сильный туман частично",
+          "vicinity_partial_fog": "Туман частично в окрестности",
+          "vicinity_showers": "Ливневые осадки в окрестности",
+          "rain_snow": "Дождь со снегом",
+          "light_rain_snow": "Слабый дождь со снегом",
+          "heavy_rain_snow": "Сильный дождь со снегом",
+          "snow_rain": "Снег с дождём",
+          "light_snow_rain": "Слабый снег с дождём",
+          "heavy_snow_rain": "Сильный снег с дождём",
+          "rain_drizzle": "Дождь с моросью",
+          "light_rain_drizzle": "Слабый дождь с моросью",
+          "heavy_rain_drizzle": "Сильный дождь с моросью",
+          "drizzle_rain": "Морось с дождём",
+          "light_drizzle_rain": "Слабая морось с дождём",
+          "heavy_drizzle_rain": "Сильная морось с дождём",
+          "snow_ice_pellets": "Снег с ледяной крупой",
+          "light_snow_ice_pellets": "Слабый снег с ледяной крупой",
+          "heavy_snow_ice_pellets": "Сильный снег с ледяной крупой",
+          "rain_ice_pellets": "Дождь с ледяной крупой",
+          "light_rain_ice_pellets": "Слабый дождь с ледяной крупой",
+          "heavy_rain_ice_pellets": "Сильный дождь с ледяной крупой",
+          "recent_rain": "Недавний дождь",
+          "recent_snow": "Недавний снег",
+          "recent_drizzle": "Недавняя морось",
+          "recent_showers": "Недавние ливневые осадки",
+          "recent_fog": "Недавний туман",
+          "recent_hail": "Недавний град",
+          "recent_small_hail": "Недавняя снежная крупа",
+          "recent_ice_pellets": "Недавняя ледяная крупа",
+          "recent_thunderstorm": "Недавняя гроза",
+          "recent_freezing_rain": "Недавний переохлаждённый дождь",
+          "recent_blowing_snow": "Недавняя низовая метель"
+        }
+      },
+      "cloud_coverage_state": {
+        "state": {
+          "clear": "Ясно",
+          "clear_sky": "Ясное небо",
+          "clr": "Нет облаков ниже 12000 фт",
+          "no_significant": "Нет значимых облаков",
+          "ncd": "Облака не обнаружены",
+          "cavok": "Облачность и видимость в норме",
+          "few": "Малооблачно (1-2 окты)",
+          "scattered": "Рассеянная облачность (3-4 окты)",
+          "broken": "Значительная облачность (5-7 окт)",
+          "overcast": "Сплошная облачность (8 окт)",
+          "vertical_visibility": "Вертикальная видимость"
+        }
+      },
+      "cloud_coverage_type": {
+        "state": {
+          "none": "Нет",
+          "cumulonimbus": "Кучево-дождевые",
+          "towering_cumulus": "Мощно-кучевые",
+          "cirrus": "Перистые",
+          "cirrostratus": "Перисто-слоистые",
+          "cirrocumulus": "Перисто-кучевые",
+          "altostratus": "Высокослоистые",
+          "altocumulus": "Высококучевые",
+          "nimbostratus": "Слоисто-дождевые",
+          "stratocumulus": "Слоисто-кучевые",
+          "stratus": "Слоистые",
+          "cumulus": "Кучевые"
+        }
+      },
+      "report_type": {
+        "state": {
+          "auto": "Автоматический отчёт",
+          "manual": "Ручной отчёт"
+        }
+      },
+      "cavok": {
+        "state": {
+          "yes": "Да",
+          "no": "Нет"
+        }
+      },
+      "runway_state": {
+        "state": {
+          "clear_and_dry": "Чисто и сухо",
+          "damp": "Влажно",
+          "wet": "Мокро или лужи",
+          "rime_or_frost": "Иней или изморозь",
+          "dry_snow": "Сухой снег",
+          "wet_snow": "Мокрый снег",
+          "slush": "Слякоть",
+          "ice": "Лёд",
+          "compacted_snow": "Уплотнённый снег",
+          "frozen_ruts": "Замёрзшая колея",
+          "not_reported": "Не сообщается",
+          "snow_closed": "Закрыто из-за снега",
+          "cleared": "Очищено",
+          "unknown": "Неизвестно"
+        },
+        "state_attributes": {
+          "coverage": {
+            "state": {
+              "cov_0": "0%",
+              "cov_lt10": "Менее 10%",
+              "cov_11_25": "11-25%",
+              "cov_26_50": "26-50%",
+              "cov_51_75": "51-75%",
+              "cov_76_90": "76-90%",
+              "cov_91_100": "91-100%",
+              "cov_51_100": "51-100%",
+              "not_reported": "Не сообщается",
+              "unknown": "Неизвестно"
+            }
+          }
+        }
+      }
+    }
+  }
 }

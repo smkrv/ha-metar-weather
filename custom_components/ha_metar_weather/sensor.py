@@ -1,14 +1,14 @@
 """
-Sensor platform for HA METAR Weather integration.
+Sensor platform for METAR Weather integration.
 
-@license: CC BY-NC-SA 4.0 International
+@license: MIT
 @github: https://github.com/smkrv/ha-metar-weather
 @source: https://github.com/smkrv/ha-metar-weather
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Callable, Union
+from typing import Any, Mapping, Optional, Callable, Union
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
@@ -25,6 +25,7 @@ from homeassistant.const import (
     UnitOfSpeed,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import (
@@ -54,46 +55,105 @@ from .const import (
     UNIT_AUTO,
     UNIT_NATIVE,
     NATIVE_METAR_UNITS,
-    DEFAULT_TEMP_UNIT,
-    DEFAULT_WIND_SPEED_UNIT,
-    DEFAULT_VISIBILITY_UNIT,
-    DEFAULT_PRESSURE_UNIT,
-    DEFAULT_ALTITUDE_UNIT,
     TrendState,
     MAX_HISTORY_DISPLAY,
+    CLOUD_COVERAGE_OPTIONS,
+    CLOUD_TYPE_OPTIONS,
+    RUNWAY_SURFACE_OPTIONS,
+    REPORT_TYPE_OPTIONS,
+    CAVOK_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _format_runway_state(state: Optional[dict]) -> Optional[str]:
-    """Format runway state dictionary into a human-readable string."""
-    if not state or not isinstance(state, dict):
+# Sensor key -> config entry key holding the unit preference for it.
+_UNIT_CONF_KEYS: dict[str, str] = {
+    "temperature": CONF_TEMP_UNIT,
+    "dew_point": CONF_TEMP_UNIT,
+    "wind_speed": CONF_WIND_SPEED_UNIT,
+    "wind_gust": CONF_WIND_SPEED_UNIT,
+    "visibility": CONF_VISIBILITY_UNIT,
+    "pressure": CONF_PRESSURE_UNIT,
+    "cloud_coverage_height": CONF_ALTITUDE_UNIT,
+}
+
+# Config entry key -> NATIVE_METAR_UNITS key.
+_NATIVE_UNIT_KEYS: dict[str, str] = {
+    CONF_TEMP_UNIT: "temperature",
+    CONF_WIND_SPEED_UNIT: "wind_speed",
+    CONF_VISIBILITY_UNIT: "visibility",
+    CONF_PRESSURE_UNIT: "pressure",
+    CONF_ALTITUDE_UNIT: "altitude",
+}
+
+
+def resolve_display_unit(entry_data: Mapping[str, Any], sensor_key: str) -> Optional[str]:
+    """Resolve the configured display unit for a sensor.
+
+    Returns None for "auto" (HA's own unit-system default) and for sensors
+    without a configurable unit.
+    """
+    conf_key = _UNIT_CONF_KEYS.get(sensor_key)
+    if conf_key is None or sensor_key in FIXED_UNITS:
         return None
 
-    parts = []
+    configured = entry_data.get(conf_key, UNIT_AUTO)
+    if configured == UNIT_AUTO:
+        return None
+    if configured == UNIT_NATIVE:
+        return NATIVE_METAR_UNITS[_NATIVE_UNIT_KEYS[conf_key]]
+    return configured
 
-    # Surface type (key is "surface" in RunwayState dataclass)
-    surface = state.get("surface")
-    if surface:
-        parts.append(surface)
 
-    # Coverage
-    coverage = state.get("coverage")
-    if coverage:
-        parts.append(f"coverage: {coverage}")
+def sync_registry_suggested_unit(
+    ent_reg: er.EntityRegistry,
+    hass: HomeAssistant,
+    station: str,
+    description: SensorEntityDescription,
+    resolved_unit: Optional[str],
+) -> None:
+    """Push the configured unit into an already-registered entity.
 
-    # Depth (can be 0 for dry runway, so use "is not None")
-    depth = state.get("depth")
-    if depth is not None:
-        parts.append(f"depth: {depth}")
+    HA core reads ``suggested_unit_of_measurement`` only when an entity is
+    first registered and pins it in ``options["sensor.private"]`` forever
+    (issue #7); changing the suggestion later has no effect. So on every
+    setup we rewrite the stored value ourselves. A unit the user picked
+    manually in the HA UI (``options["sensor"]["unit_of_measurement"]``)
+    always wins and is never touched.
+    """
+    if description.key not in _UNIT_CONF_KEYS:
+        return
 
-    # Friction
-    friction = state.get("friction")
-    if friction is not None:
-        parts.append(f"friction: {friction}")
+    unique_id = f"{DOMAIN}_{station}_{description.key}"
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+    if entity_id is None:
+        return  # new entity: __init__ provides the suggestion
 
-    return ", ".join(parts) if parts else "Clear"
+    entry = ent_reg.entities[entity_id]
+    if (entry.options.get("sensor") or {}).get("unit_of_measurement"):
+        return
+
+    # For "auto", mirror what core itself would store at first registration:
+    # the unit system's converted unit, or nothing when the native unit
+    # already matches the system.
+    wanted = resolved_unit or hass.config.units.get_converted_unit(
+        description.device_class, description.native_unit_of_measurement
+    )
+    stored = (entry.options.get("sensor.private") or {}).get(
+        "suggested_unit_of_measurement"
+    )
+    if stored == wanted:
+        return
+
+    _LOGGER.debug(
+        "Updating display unit for %s: %s -> %s", entity_id, stored, wanted
+    )
+    ent_reg.async_update_entity_options(
+        entity_id,
+        "sensor.private",
+        {"suggested_unit_of_measurement": wanted} if wanted else {},
+    )
 
 
 @dataclass
@@ -175,7 +235,9 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         key="pressure",
         name="Pressure",
         native_unit_of_measurement=UnitOfPressure.HPA,
-        device_class=SensorDeviceClass.PRESSURE,
+        # QNH is atmospheric pressure; plain PRESSURE would make HA's unit
+        # system pick psi instead of inHg on US installs.
+        device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda data: data.get("pressure"),
         icon="mdi:gauge",
@@ -194,7 +256,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="weather",
         name="Weather Condition",
-        value_fn=lambda data: data.get("weather", "Clear"),
+        # Compositional, so not an ENUM. translation_key lets the frontend
+        # localize known slugs; unknown combinations render the raw slug.
+        translation_key="weather",
+        value_fn=lambda data: data.get("weather", "clear"),
         icon="mdi:weather-partly-cloudy",
         has_history=False,
     ),
@@ -212,7 +277,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_state",
         name="Cloud Coverage State",
-        value_fn=lambda data: data.get("cloud_coverage_state", "Clear"),
+        device_class=SensorDeviceClass.ENUM,
+        options=CLOUD_COVERAGE_OPTIONS,
+        translation_key="cloud_coverage_state",
+        value_fn=lambda data: data.get("cloud_coverage_state", "clear"),
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -229,7 +297,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_coverage_type",
         name="Cloud Coverage Type",
-        value_fn=lambda data: data.get("cloud_coverage_type", "N/A"),
+        device_class=SensorDeviceClass.ENUM,
+        options=CLOUD_TYPE_OPTIONS,
+        translation_key="cloud_coverage_type",
+        value_fn=lambda data: data.get("cloud_coverage_type", "none"),
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -243,14 +314,20 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="auto_indicator",
         name="Auto Indicator",
-        value_fn=lambda data: "Auto Report" if data.get("auto") else "Manual Report",
+        device_class=SensorDeviceClass.ENUM,
+        options=REPORT_TYPE_OPTIONS,
+        translation_key="report_type",
+        value_fn=lambda data: "auto" if data.get("auto") else "manual",
         icon="mdi:robot",
         has_history=False,
     ),
     MetarSensorEntityDescription(
         key="cavok",
         name="CAVOK",
-        value_fn=lambda data: str(data.get("cavok", False)),
+        device_class=SensorDeviceClass.ENUM,
+        options=CAVOK_OPTIONS,
+        translation_key="cavok",
+        value_fn=lambda data: "yes" if data.get("cavok") else "no",
         icon="mdi:weather-sunny",
         has_history=False,
     ),
@@ -270,7 +347,9 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="trend",
         name="Trend",
-        value_fn=lambda data: data.get("trend", "No trend information"),
+        # Free-form forecast group (NOSIG / TEMPO ... / BECMG ...) kept verbatim
+        # from the raw METAR; language-neutral, so not translated. None -> unknown.
+        value_fn=lambda data: data.get("trend"),
         icon="mdi:trending-up",
         has_history=False,
     ),
@@ -287,6 +366,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         station: str,
         description: MetarSensorEntityDescription,
         config_entry: ConfigEntry,
+        suggested_unit: Optional[str] = None,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -296,6 +376,11 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{station}_{description.key}"
         self._attr_name = f"METAR {station} {description.name}"
         self._attr_native_unit_of_measurement = description.native_unit_of_measurement
+        # Must be set before the entity is added: HA core reads the suggested
+        # unit during registration, never after (issue #7). None = "auto",
+        # core falls back to the unit system's preferred unit.
+        if suggested_unit is not None:
+            self._attr_suggested_unit_of_measurement = suggested_unit
 
         # Add device_info
         self._attr_device_info = {
@@ -306,99 +391,6 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             "sw_version": VERSION,
             "entry_type": DeviceEntryType.SERVICE,
         }
-
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to hass."""
-        await super().async_added_to_hass()
-        self._update_units()
-
-    def _get_configured_unit(self, unit_key: str, default: str) -> str:
-        """Get configured unit from config entry or return default.
-
-        Args:
-            unit_key: Configuration key for the unit
-            default: Default unit value
-
-        Returns:
-            The configured unit or resolved auto/native unit
-        """
-        configured = self._config_entry.data.get(unit_key, UNIT_AUTO)
-
-        if configured == UNIT_AUTO:
-            # Use Home Assistant system settings
-            is_metric = self.hass.config.units.temperature_unit == UnitOfTemperature.CELSIUS
-
-            if unit_key == CONF_TEMP_UNIT:
-                return UnitOfTemperature.CELSIUS if is_metric else UnitOfTemperature.FAHRENHEIT
-            elif unit_key == CONF_WIND_SPEED_UNIT:
-                return UnitOfSpeed.KILOMETERS_PER_HOUR if is_metric else UnitOfSpeed.MILES_PER_HOUR
-            elif unit_key == CONF_VISIBILITY_UNIT:
-                return UnitOfLength.KILOMETERS if is_metric else UnitOfLength.MILES
-            elif unit_key == CONF_PRESSURE_UNIT:
-                return UnitOfPressure.HPA if is_metric else UnitOfPressure.INHG
-            elif unit_key == CONF_ALTITUDE_UNIT:
-                return UnitOfLength.METERS if is_metric else UnitOfLength.FEET
-
-            return default
-
-        if configured == UNIT_NATIVE:
-            # Use native METAR/aviation units
-            native_key_mapping = {
-                CONF_TEMP_UNIT: "temperature",
-                CONF_WIND_SPEED_UNIT: "wind_speed",
-                CONF_VISIBILITY_UNIT: "visibility",
-                CONF_PRESSURE_UNIT: "pressure",
-                CONF_ALTITUDE_UNIT: "altitude",
-            }
-            native_key = native_key_mapping.get(unit_key)
-            if native_key and native_key in NATIVE_METAR_UNITS:
-                return NATIVE_METAR_UNITS[native_key]
-            return default
-
-        return configured
-
-    def _update_units(self) -> None:
-        """Update suggested display units based on configuration preferences.
-
-        Note: native_unit_of_measurement stays as defined in SENSOR_TYPES
-        (the actual unit of stored data). suggested_unit_of_measurement
-        tells Home Assistant what unit to convert to for display.
-        """
-        key = self.entity_description.key
-
-        # Skip update for sensors with fixed units
-        if key in FIXED_UNITS:
-            return
-
-        # Map sensor keys to unit configuration keys
-        unit_key_mapping = {
-            "temperature": CONF_TEMP_UNIT,
-            "dew_point": CONF_TEMP_UNIT,
-            "wind_speed": CONF_WIND_SPEED_UNIT,
-            "wind_gust": CONF_WIND_SPEED_UNIT,
-            "visibility": CONF_VISIBILITY_UNIT,
-            "pressure": CONF_PRESSURE_UNIT,
-            "cloud_coverage_height": CONF_ALTITUDE_UNIT,
-        }
-
-        default_mapping = {
-            "temperature": DEFAULT_TEMP_UNIT,
-            "dew_point": DEFAULT_TEMP_UNIT,
-            "wind_speed": DEFAULT_WIND_SPEED_UNIT,
-            "wind_gust": DEFAULT_WIND_SPEED_UNIT,
-            "visibility": DEFAULT_VISIBILITY_UNIT,
-            "pressure": DEFAULT_PRESSURE_UNIT,
-            "cloud_coverage_height": DEFAULT_ALTITUDE_UNIT,
-        }
-
-        if key in unit_key_mapping:
-            unit_key = unit_key_mapping[key]
-            default = default_mapping[key]
-            suggested_unit = self._get_configured_unit(unit_key, default)
-            # Only set suggested unit if it differs from native unit
-            # Home Assistant will handle the conversion automatically
-            if suggested_unit != self.entity_description.native_unit_of_measurement:
-                self._attr_suggested_unit_of_measurement = suggested_unit
 
     @property
     def native_value(self) -> Optional[Union[str, float, int]]:
@@ -456,6 +448,23 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
 
             if self.entity_description.key != "raw_metar":
                 attrs[ATTR_RAW_METAR] = self.coordinator.data.get("raw_metar")
+
+            key = self.entity_description.key
+
+            # Weather sensor: expose the structured slug breakdown for advanced use.
+            if key == "weather":
+                groups = self.coordinator.data.get("weather_groups")
+                if groups is not None:
+                    attrs["weather_groups"] = groups
+
+            # Per-runway sensor (state = surface slug): expose the rest as attrs.
+            if key.startswith("runway_") and key != "runway_states":
+                runway_id = key[len("runway_"):]
+                rstate = (self.coordinator.data.get("runway_states") or {}).get(runway_id)
+                if rstate:
+                    attrs["coverage"] = rstate.get("coverage")
+                    attrs["depth"] = rstate.get("depth")
+                    attrs["friction"] = rstate.get("friction")
 
             if self.entity_description.has_history and self.hass.data.get(DOMAIN, {}).get("storage"):
                 storage = self.hass.data[DOMAIN]["storage"]
@@ -566,6 +575,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the METAR sensors."""
     coordinators = hass.data[DOMAIN][config_entry.entry_id]
+    ent_reg = er.async_get(hass)
     entities: list[MetarSensor] = []
 
     for station in config_entry.data[CONF_STATIONS]:
@@ -588,11 +598,16 @@ async def async_setup_entry(
         _LOGGER.debug("Setting up sensors for station %s", station_upper)
 
         for description in SENSOR_TYPES:
+            resolved_unit = resolve_display_unit(config_entry.data, description.key)
+            sync_registry_suggested_unit(
+                ent_reg, hass, station_upper, description, resolved_unit
+            )
             entities.append(MetarSensor(
                 coordinator=coordinator,
                 station=station_upper,
                 description=description,
                 config_entry=config_entry,
+                suggested_unit=resolved_unit,
             ))
 
         # Setup individual runway sensors (only if we have data with runways)
@@ -608,9 +623,14 @@ async def async_setup_entry(
                             description=MetarSensorEntityDescription(
                                 key=f"runway_{runway}",
                                 name=f"Runway {runway} State",
-                                value_fn=lambda data, r=runway: _format_runway_state(
-                                    data.get("runway_states", {}).get(r)
-                                ),
+                                device_class=SensorDeviceClass.ENUM,
+                                options=RUNWAY_SURFACE_OPTIONS,
+                                translation_key="runway_state",
+                                # State = surface slug (localized); coverage / depth /
+                                # friction are exposed via extra_state_attributes.
+                                value_fn=lambda data, r=runway: (
+                                    data.get("runway_states", {}).get(r) or {}
+                                ).get("surface"),
                                 icon="mdi:runway",
                                 has_history=False,
                             ),

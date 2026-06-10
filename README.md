@@ -1,8 +1,8 @@
-# <img src="assets/images/icon@2x.png" alt="Logo" height="64" style="vertical-align: middle;"> HA METAR Weather
+# <img src="assets/images/icon@2x.png" alt="Logo" height="64" style="vertical-align: middle;"> METAR Weather
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/smkrv/ha-metar-weather)](https://github.com/smkrv/ha-metar-weather/releases)
-[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.2+-41BDF5.svg)](https://www.home-assistant.io/)
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](#localization)
 [![Русский](https://img.shields.io/badge/lang-Русский-blue.svg)](#localization)
@@ -17,7 +17,7 @@ Professional aviation weather monitoring for Home Assistant. Get real-time METAR
 > Always consult official aviation weather sources and certified flight planning tools for aviation activities.
 
 <div align="center">
-  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.png" alt="HA METAR Weather" width="700"/>
+  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/airport.png" alt="METAR Weather" width="700"/>
 </div>
 
 ## Installation
@@ -32,7 +32,7 @@ Professional aviation weather monitoring for Home Assistant. Get real-time METAR
 ## Features
 
 <div align="center">
-  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/screenshot.png" alt="HA METAR Weather — screenshot" width="700"/>
+  <img src="https://github.com/smkrv/ha-metar-weather/blob/main/assets/images/screenshot.png" alt="METAR Weather — screenshot" width="700"/>
 </div>
 
 ### Global Coverage
@@ -103,7 +103,7 @@ Full interface translation in:
 
 1. Go to **Settings** > **Devices & Services**
 2. Click **Add Integration**
-3. Search for **HA METAR Weather**
+3. Search for **METAR Weather**
 4. Enter the ICAO airport code (4 letters, e.g., KJFK, EGLL, UUEE)
 5. Configure your preferred units
 
@@ -173,7 +173,7 @@ Both sources provide official NOAA/NWS data. The integration automatically falls
 ## License
 
 **Author**: SMKRV
-**License**: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+**License**: [MIT](LICENSE)
 
 ## Support the Project
 
