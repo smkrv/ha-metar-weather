@@ -13,6 +13,7 @@ come from the integration's history; fr comes from community PR #2 (corrected).
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 LANGS = ("en", "de", "ru", "fr")
@@ -23,7 +24,9 @@ TR_DIR = Path(__file__).resolve().parent.parent / "custom_components" / "ha_meta
 CLOUD_COVERAGE = {
     "clear": {"en": "Clear", "de": "Klar", "ru": "Ясно", "fr": "Clair"},
     "clear_sky": {"en": "Clear sky", "de": "Klarer Himmel", "ru": "Ясное небо", "fr": "Ciel dégagé"},
-    "clr": {"en": "No clouds below 12,000 ft", "de": "Keine Wolken unter 12.000 ft", "ru": "Нет облаков ниже 12000 фт", "fr": "Pas de nuages sous 12 000 ft"},
+    # ru uses Latin "ft" - the composite cloud_layers state appends "ft" to
+    # heights, and mixing scripts within one sensor reads as a glitch.
+    "clr": {"en": "No clouds below 12,000 ft", "de": "Keine Wolken unter 12.000 ft", "ru": "Нет облаков ниже 12000 ft", "fr": "Pas de nuages sous 12 000 ft"},
     "no_significant": {"en": "No significant clouds", "de": "Keine bedeutenden Wolken", "ru": "Нет значимых облаков", "fr": "Pas de nuage significatif"},
     "ncd": {"en": "No clouds detected", "de": "Keine Wolken erkannt", "ru": "Облака не обнаружены", "fr": "Aucun nuage détecté"},
     "cavok": {"en": "Ceiling and visibility OK", "de": "Wolkenuntergrenze und Sicht OK", "ru": "Облачность и видимость в норме", "fr": "Plafond et visibilité OK"},
@@ -32,6 +35,8 @@ CLOUD_COVERAGE = {
     "broken": {"en": "Broken (5-7 oktas)", "de": "Bedeckt mit Lücken (5-7 Achtel)", "ru": "Значительная облачность (5-7 окт)", "fr": "Fragmenté (5-7 octas)"},
     "overcast": {"en": "Overcast (8 oktas)", "de": "Bedeckt (8 Achtel)", "ru": "Сплошная облачность (8 окт)", "fr": "Couvert (8 octas)"},
     "vertical_visibility": {"en": "Vertical visibility", "de": "Vertikale Sicht", "ru": "Вертикальная видимость", "fr": "Visibilité verticale"},
+    # AUTO slash placeholders (//////, ///015, //////CB): cloud amount unknown.
+    "amount_unknown": {"en": "Unknown", "de": "Unbekannt", "ru": "Неизвестно", "fr": "Inconnu"},
 }
 
 CLOUD_TYPE = {
@@ -48,6 +53,36 @@ CLOUD_TYPE = {
     "stratus": {"en": "Stratus", "de": "Stratus", "ru": "Слоистые", "fr": "Stratus"},
     "cumulus": {"en": "Cumulus", "de": "Cumulus", "ru": "Кучевые", "fr": "Cumulus"},
 }
+
+
+def _strip_parenthetical(strings: dict[str, str]) -> dict[str, str]:
+    """Drop a trailing ' (...)' explanation: too long for composite lists."""
+    return {lang: re.sub(r"\s*\([^)]*\)$", "", text) for lang, text in strings.items()}
+
+
+# Per-layer names for the composite cloud_layers state ("Scattered 5800ft,
+# Broken 8400ft (Cumulonimbus)"). The frontend can only translate exact state
+# values, never composite strings, so sensor.py composes this state
+# server-side from these entries (issues #11, #12). Coverage names derive from
+# CLOUD_COVERAGE, cloud types from CLOUD_TYPE, both minus trailing
+# parentheticals (the okta counts; de "(Cumulus congestus)" would nest inside
+# the formatter's own parentheses). A few rows read wrong as list items and
+# get explicit overrides.
+CLOUD_LAYER = {
+    slug: _strip_parenthetical(strings) for slug, strings in CLOUD_COVERAGE.items()
+}
+CLOUD_LAYER.update(
+    {
+        slug: _strip_parenthetical(strings)
+        for slug, strings in CLOUD_TYPE.items()
+        if slug != "none"
+    }
+)
+# ru "Малооблачно" is a whole-sky adverb, wrong as one layer among noun
+# phrases; de BKN "Bedeckt mit Lücken" is too easy to misread next to OVC
+# "Bedeckt" in a list (DWD decodes BKN as "durchbrochen").
+CLOUD_LAYER["few"] = {**CLOUD_LAYER["few"], "ru": "Незначительная облачность"}
+CLOUD_LAYER["broken"] = {**CLOUD_LAYER["broken"], "de": "Durchbrochen"}
 
 RUNWAY_SURFACE = {
     "clear_and_dry": {"en": "Clear and dry", "de": "Frei und trocken", "ru": "Чисто и сухо", "fr": "Dégagée et sèche"},
@@ -239,6 +274,8 @@ def build_entity_sensor(lang: str, weather: dict) -> dict:
     sensor: dict = {key: {"state_attributes": trend_attr} for key in measurement}
     sensor["weather"] = {"state": _states(weather, lang)}
     sensor["cloud_coverage_state"] = {"state": _states(CLOUD_COVERAGE, lang)}
+    # Read server-side by sensor.py (async_cloud_layer_names), not the frontend.
+    sensor["cloud_layers"] = {"state": _states(CLOUD_LAYER, lang)}
     sensor["cloud_coverage_type"] = {"state": _states(CLOUD_TYPE, lang)}
     sensor["report_type"] = {"state": _states(REPORT_TYPE, lang)}
     sensor["cavok"] = {"state": _states(CAVOK, lang)}

@@ -19,6 +19,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    MAX_LENGTH_STATE_STATE,
     UnitOfTemperature,
     UnitOfLength,
     UnitOfPressure,
@@ -28,6 +29,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.translation import async_get_translations
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -113,6 +115,70 @@ def resolve_display_unit(
     return configured
 
 
+def format_cloud_layers(
+    layers: Optional[list], names: Mapping[str, str]
+) -> Optional[str]:
+    """Compose the cloud_layers state text from the parsed layers.
+
+    HA's frontend translates only exact state values, never composite strings,
+    so the localized per-layer names (entity.sensor.cloud_layers.state in
+    translations/<lang>.json) are applied server-side here (issue #12).
+    Heightless layers (CLR, SKC, NSC, NCD, CAVOK, VV///) render as the bare
+    name - previously they produced "clr Noneft" (issue #11). An empty layer
+    list means the report carries no sky-condition group at all (stations
+    reporting clear sky send an explicit CLR/SKC/NSC/NCD/CAVOK token), so it
+    yields None ("unknown"), not a clear-sky claim.
+    """
+    parts = []
+    for layer in layers or []:
+        if not isinstance(layer, dict) or not layer.get("coverage"):
+            continue
+        text = names.get(layer["coverage"], layer["coverage"])
+        if layer.get("height") is not None:
+            text += f" {layer['height']}ft"
+        if layer.get("type"):
+            text += f" ({names.get(layer['type'], layer['type'])})"
+        parts.append(text)
+    state = ", ".join(parts)
+    if len(state) > MAX_LENGTH_STATE_STATE:
+        # Degenerate many-layer report: localized names can overflow HA's
+        # state length limit (a rejected state would freeze the sensor).
+        # Drop the type suffixes first, then hard-truncate.
+        state = ", ".join(p.split(" (")[0] for p in parts)
+        if len(state) > MAX_LENGTH_STATE_STATE:
+            state = state[: MAX_LENGTH_STATE_STATE - 3] + "..."
+    return state or None
+
+
+async def async_cloud_layer_names(hass: HomeAssistant) -> dict[str, str]:
+    """Localized building blocks for the composite cloud_layers state.
+
+    Coverage names come from entity.sensor.cloud_layers.state, cloud types
+    reuse entity.sensor.cloud_coverage_type.state (the slug sets are
+    disjoint). Follows the server language; a language change applies on the
+    next reload/restart, like HA's own entity naming.
+    """
+    try:
+        translations = await async_get_translations(
+            hass, hass.config.language, "entity", {DOMAIN}
+        )
+    except Exception as err:  # corrupt translation file must not kill setup
+        # Same guard HA core uses in EntityPlatform._async_get_translations:
+        # a broken JSON would otherwise fail the whole sensor platform.
+        # format_cloud_layers degrades to raw slugs with an empty map.
+        _LOGGER.warning(
+            "Could not load translations for the cloud_layers state: %s", err
+        )
+        return {}
+    names: dict[str, str] = {}
+    for section in ("cloud_layers", "cloud_coverage_type"):
+        prefix = f"component.{DOMAIN}.entity.sensor.{section}.state."
+        for key, value in translations.items():
+            if key.startswith(prefix):
+                names.setdefault(key.removeprefix(prefix), value)
+    return names
+
+
 def sync_registry_suggested_unit(
     ent_reg: er.EntityRegistry,
     hass: HomeAssistant,
@@ -166,6 +232,8 @@ def sync_registry_suggested_unit(
 @dataclass
 class MetarSensorEntityDescription(SensorEntityDescription):
     """Class describing METAR sensor entities."""
+    # cloud_layers' value_fn returns the raw layer list (dict.get -> Any),
+    # formatted into a localized string by native_value before it leaves.
     value_fn: Callable[[dict], Optional[Union[str, float, int]]] = lambda d: None
     has_history: bool = True
     trend_threshold: float = 0.1
@@ -281,11 +349,9 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
     MetarSensorEntityDescription(
         key="cloud_layers",
         name="Cloud Layers",
-        value_fn=lambda data: ", ".join(
-            f"{layer.get('coverage', '')} {layer.get('height', 'N/A')}ft"
-            for layer in (data.get("cloud_layers") or [])
-            if isinstance(layer, dict) and layer.get('coverage')
-        ) or "Clear",
+        # Raw layer list; native_value localizes it via format_cloud_layers()
+        # (composite text, so HA's own state translation cannot apply).
+        value_fn=lambda data: data.get("cloud_layers"),
         icon="mdi:cloud",
         has_history=False,
     ),
@@ -383,12 +449,14 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         description: MetarSensorEntityDescription,
         config_entry: ConfigEntry,
         suggested_unit: Optional[str] = None,
+        cloud_layer_names: Optional[Mapping[str, str]] = None,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
         self._station = station
         self._config_entry = config_entry
+        self._cloud_layer_names = cloud_layer_names or {}
         self._attr_unique_id = f"{DOMAIN}_{station}_{description.key}"
         self._attr_name = f"METAR {station} {description.name}"
         self._attr_native_unit_of_measurement = description.native_unit_of_measurement
@@ -426,6 +494,13 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                 return None
 
             value = self.entity_description.value_fn(self.coordinator.data)
+
+            # Composite text state, localized server-side (issues #11, #12).
+            if self.entity_description.key == "cloud_layers":
+                return format_cloud_layers(
+                    value if isinstance(value, list) else None,
+                    self._cloud_layer_names,
+                )
 
             # Special handling for numeric values
             if isinstance(value, (float, int)):
@@ -482,6 +557,14 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                 groups = self.coordinator.data.get("weather_groups")
                 if groups is not None:
                     attrs["weather_groups"] = groups
+
+            # Cloud layers: the state text is localized and changes with the
+            # server language, so expose the language-independent structure
+            # (stable slugs, integer feet) for automations and templates.
+            if key == "cloud_layers":
+                layers = self.coordinator.data.get("cloud_layers")
+                if layers is not None:
+                    attrs["layers"] = layers
 
             # Per-runway sensor (state = surface slug): expose the rest as attrs.
             if key.startswith("runway_") and key != "runway_states":
@@ -608,6 +691,7 @@ async def async_setup_entry(
     """Set up the METAR sensors."""
     coordinators = hass.data[DOMAIN][config_entry.entry_id]
     ent_reg = er.async_get(hass)
+    cloud_layer_names = await async_cloud_layer_names(hass)
     entities: list[MetarSensor] = []
 
     for station in config_entry.data[CONF_STATIONS]:
@@ -647,6 +731,7 @@ async def async_setup_entry(
                 description=description,
                 config_entry=config_entry,
                 suggested_unit=resolved_unit,
+                cloud_layer_names=cloud_layer_names,
             ))
 
         # Setup individual runway sensors (only if we have data with runways)

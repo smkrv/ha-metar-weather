@@ -156,6 +156,26 @@ class MetarParser:
                     layers.append(layer)
                     _LOGGER.debug("Parsed clear sky indicator: %s", part)
 
+                # AUTO stations with a failed or partial ceilometer transmit
+                # slash placeholders: ////// (no cloud data), ///015 (amount
+                # unknown, base 1500 ft), //////CB (convection detected by
+                # another sensor). Dropping them would misreport clear sky.
+                elif part.startswith('///'):
+                    m = re.fullmatch(r'/{3}(\d{3}|/{3})((?:CB|TCU)?)/{0,3}', part)
+                    if m:
+                        height = (
+                            int(m.group(1)) * 100 if m.group(1).isdigit() else None
+                        )
+                        cloud_type = (
+                            self.CLOUD_TYPES.get(m.group(2)) if m.group(2) else None
+                        )
+                        layers.append(CloudLayer(
+                            coverage="amount_unknown",
+                            height=height,
+                            type=cloud_type,
+                        ))
+                        _LOGGER.debug("Parsed unknown-amount cloud group: %s", part)
+
                 # Vertical Visibility (VV): used for fog/obscuration (e.g., VV002 = 200ft, VV/// = undefined)
                 elif part.startswith('VV'):
                     height_str = part[2:5] if len(part) >= 5 else part[2:]

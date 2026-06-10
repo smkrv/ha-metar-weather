@@ -253,7 +253,9 @@ CLOUD_COVERAGE: Final[Dict[str, str]] = {
 }
 
 # Closed vocabulary for the cloud_coverage_state ENUM sensor. "clear" is emitted
-# when no layers are present.
+# when no layers are present. "amount_unknown" comes from AUTO slash
+# placeholders (//////, ///015, //////CB); the slug is deliberately not
+# "unknown", which is HA's STATE_UNKNOWN literal.
 CLOUD_COVERAGE_OPTIONS: Final[list[str]] = [
     "clear",
     "clear_sky",
@@ -266,6 +268,7 @@ CLOUD_COVERAGE_OPTIONS: Final[list[str]] = [
     "broken",
     "overcast",
     "vertical_visibility",
+    "amount_unknown",
 ]
 
 # Cloud type code -> slug.

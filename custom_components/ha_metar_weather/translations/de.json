@@ -442,7 +442,35 @@
           "scattered": "Aufgelockert (3-4 Achtel)",
           "broken": "Bedeckt mit Lücken (5-7 Achtel)",
           "overcast": "Bedeckt (8 Achtel)",
-          "vertical_visibility": "Vertikale Sicht"
+          "vertical_visibility": "Vertikale Sicht",
+          "amount_unknown": "Unbekannt"
+        }
+      },
+      "cloud_layers": {
+        "state": {
+          "clear": "Klar",
+          "clear_sky": "Klarer Himmel",
+          "clr": "Keine Wolken unter 12.000 ft",
+          "no_significant": "Keine bedeutenden Wolken",
+          "ncd": "Keine Wolken erkannt",
+          "cavok": "Wolkenuntergrenze und Sicht OK",
+          "few": "Wenige Wolken",
+          "scattered": "Aufgelockert",
+          "broken": "Durchbrochen",
+          "overcast": "Bedeckt",
+          "vertical_visibility": "Vertikale Sicht",
+          "amount_unknown": "Unbekannt",
+          "cumulonimbus": "Cumulonimbus",
+          "towering_cumulus": "Mächtige Quellwolken",
+          "cirrus": "Cirrus",
+          "cirrostratus": "Cirrostratus",
+          "cirrocumulus": "Cirrocumulus",
+          "altostratus": "Altostratus",
+          "altocumulus": "Altocumulus",
+          "nimbostratus": "Nimbostratus",
+          "stratocumulus": "Stratocumulus",
+          "stratus": "Stratus",
+          "cumulus": "Cumulus"
         }
       },
       "cloud_coverage_type": {
