@@ -658,30 +658,19 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             return TrendState.STABLE
 
 
-    @property
+   @property
     def available(self) -> bool:
-        """Return if entity is available."""
-        if not self.coordinator.last_update_success or self.coordinator.data is None:
-            return False
+        """Return if entity is available.
 
-        key = self.entity_description.key
-
-        # wind_direction: available only if we have a numeric direction
-        # For VRB wind, direction is None - sensor will be unavailable
-        # The separate wind_variable_direction sensor shows "VRB" status
-        if key == "wind_direction":
-            return self.coordinator.data.get("wind_direction") is not None
-
-        # wind_gust: only available if there's actually a gust value
-        if key == "wind_gust":
-            return self.coordinator.data.get("wind_gust") is not None
-
-        # wind_variable_direction: only available if there's variable direction
-        if key == "wind_variable_direction":
-            return self.coordinator.data.get("wind_variable_direction") is not None
-
-        return self.native_value is not None
-
+        The entity is available whenever the coordinator has fresh data,
+        even if this specific field is absent from the current METAR
+        (e.g. no wind direction when calm, no cloud height under CAVOK).
+        Those legitimate "no value" cases are reported via native_value
+        returning None, which HA renders as "unknown" (grey, no warning)
+        rather than "unavailable" (warning icon) - see issue #13.
+        """
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+        
 
 async def async_setup_entry(
     hass: HomeAssistant,
