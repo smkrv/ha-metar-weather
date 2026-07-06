@@ -152,6 +152,57 @@ async def test_no_field_reads_unavailable_on_fresh_data(
     await _teardown(hass, entry)
 
 
+async def test_gusting_report_surfaces_gust_value(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+):
+    """33015G25KT: the gust must stay a real value - the point of #13 is to
+    change only the absent-field presentation, never to hide present data."""
+    entry = await _setup_station(
+        hass,
+        aioclient_mock,
+        "LFLC",
+        "METAR LFLC 101030Z AUTO 33015G25KT 9999 18/04 Q1021 NOSIG",
+        wdir=330,
+        wspd=15,
+        wgst=25,
+    )
+    gust = _state(hass, "LFLC", "wind_gust")
+    assert gust not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+    assert float(gust) == pytest.approx(25 * 1.852)  # 25 kt in km/h
+    assert _state(hass, "LFLC", "wind_direction") == "330.0"
+    await _teardown(hass, entry)
+
+
+async def test_fetch_failure_reads_unavailable_end_to_end(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+):
+    """A real fetch failure must still surface as 'unavailable' (not
+    'unknown'): the coordinator raises UpdateFailed and every entity of the
+    station flips, exercising the full chain the unit tests mock away."""
+    entry = await _setup_station(
+        hass,
+        aioclient_mock,
+        "LFLC",
+        "METAR LFLC 101030Z AUTO 33008KT 9999 18/04 Q1021 NOSIG",
+        wdir=330,
+        wspd=8,
+    )
+    assert _state(hass, "LFLC", "temperature") == "18.0"
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]["LFLC"]
+
+    async def _no_data():
+        return None
+
+    coordinator.client.fetch_data = _no_data  # both sources dry -> UpdateFailed
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    for key in ("temperature", "wind_speed", "raw_metar"):
+        assert _state(hass, "LFLC", key) == STATE_UNAVAILABLE, key
+    await _teardown(hass, entry)
+
+
 # --- unit level: the available property itself ------------------------------
 
 
