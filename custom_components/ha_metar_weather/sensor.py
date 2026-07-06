@@ -295,7 +295,7 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
         native_unit_of_measurement=DEGREE,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
-        # For VRB wind, return None (sensor will be unavailable)
+        # For VRB or calm wind, direction is None -> state "unknown" (issue #13)
         # The separate wind_variable_direction sensor shows "VRB" status
         value_fn=lambda data: data.get("wind_direction"),
         icon="mdi:compass",
@@ -658,7 +658,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             return TrendState.STABLE
 
 
-   @property
+    @property
     def available(self) -> bool:
         """Return if entity is available.
 
@@ -670,7 +670,7 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         rather than "unavailable" (warning icon) - see issue #13.
         """
         return self.coordinator.last_update_success and self.coordinator.data is not None
-        
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
