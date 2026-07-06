@@ -423,7 +423,10 @@ SENSOR_TYPES: tuple[MetarSensorEntityDescription, ...] = (
             f"Friction: {details.get('friction', 'N/A')}"
             for rwy, details in data.get("runway_states", {}).items()
         ) or "No Runway Data",
-        icon="mdi:runway",
+        # mdi:runway does not exist in MDI, so the frontend showed no icon
+        # at all (issue #14); mdi:road-variant reads as a runway seen from
+        # final approach.
+        icon="mdi:road-variant",
         has_history=False,
     ),
     MetarSensorEntityDescription(
@@ -744,7 +747,9 @@ async def async_setup_entry(
                                 value_fn=lambda data, r=runway: (
                                     data.get("runway_states", {}).get(r) or {}
                                 ).get("surface"),
-                                icon="mdi:runway",
+                                # Same nonexistent-icon fix as runway_states
+                                # (issue #14).
+                                icon="mdi:road-variant",
                                 has_history=False,
                             ),
                             config_entry=config_entry,
