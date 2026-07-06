@@ -7,6 +7,7 @@
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](#localization)
 [![Русский](https://img.shields.io/badge/lang-Русский-blue.svg)](#localization)
 [![Deutsch](https://img.shields.io/badge/lang-Deutsch-blue.svg)](#localization)
+[![Français](https://img.shields.io/badge/lang-Fran%C3%A7ais-blue.svg)](#localization)
 
 Professional aviation weather monitoring for Home Assistant. Get real-time METAR data from over 9,000 airport weather stations worldwide with automatic trend analysis and historical tracking.
 
@@ -80,7 +81,7 @@ If the primary source is unavailable, the integration seamlessly switches to the
 Choose your preferred units, use Home Assistant system settings, or native aviation units:
 
 - **Auto**: Follow Home Assistant system settings
-- **Native (METAR)**: Standard aviation units (°C, knots, statute miles, hPa, feet)
+- **Native (METAR)**: Follow the units of the station's own reports (e.g. knots, meters and hPa for ICAO stations; knots, statute miles and inHg for US stations; cloud heights always in feet)
 - **Manual selection**:
   - Temperature: Celsius or Fahrenheit
   - Wind Speed: km/h, m/s, mph, or knots
@@ -98,6 +99,7 @@ Full interface translation in:
 - English
 - Russian (Русский)
 - German (Deutsch)
+- French (Français)
 
 ## Configuration
 
@@ -139,9 +141,10 @@ data:
 
 ### Sensors Show "Unknown" or "Unavailable"
 
-- Verify the ICAO code is correct (exactly 4 uppercase letters)
-- Check if the station is actively reporting at [Aviation Weather Center](https://aviationweather.gov/metar)
-- Some smaller airports report intermittently
+The two states mean different things:
+
+- **Unknown**: the station reports fine, but this field is absent from the current METAR - no gusts, no wind direction while the wind is calm or variable, no cloud height under CAVOK. This is normal.
+- **Unavailable**: fetching the report itself failed. Verify the ICAO code is correct (exactly 4 uppercase letters), check the station is actively reporting at [Aviation Weather Center](https://aviationweather.gov/metar), and keep in mind some smaller airports report intermittently.
 
 ### Enable Debug Logging
 

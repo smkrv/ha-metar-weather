@@ -2,6 +2,8 @@
 
 Status: implemented (this is the design that the phase-2 PR carries out). Phase 1 (single-parser source unification, issue #3) shipped first and is a prerequisite.
 
+Update (v4.0.3+): the Cloud Layers composite state described below as "not localized" is now localized server-side from the integration's own translation files (issues #11/#12; see CLAUDE.md and the v4.0.3 release notes). The language-independent contract for automations is the `layers` attribute. The table below documents the v4.0.0 transition and is kept as history.
+
 ## Breaking changes (for release notes - bump to a major version)
 
 Sensor state values changed from English prose to stable slugs. The frontend now
