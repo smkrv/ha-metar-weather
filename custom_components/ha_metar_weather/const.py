@@ -352,7 +352,7 @@ UNIT_FORMATS: Final[Dict[str, str]] = {
     UnitOfSpeed.METERS_PER_SECOND: "m/s",
     UnitOfSpeed.MILES_PER_HOUR: "mph",
     UnitOfSpeed.KILOMETERS_PER_HOUR: "km/h",
-    UnitOfSpeed.KNOTS: "kt",
+    UnitOfSpeed.KNOTS: "kn",  # HA core's knot symbol; sensors display "kn", so the picker must match
 }
 
 # Available units for user selection
