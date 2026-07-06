@@ -1,4 +1,130 @@
 {
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configuration de METAR Weather",
+        "description": "Configurez la surveillance météorologique METAR.\n\nSources de données (NOAA) :\n• Source principale : API de l'Aviation Weather Center (aviationweather.gov)\n• Source de secours : NOAA FTP (tgftp.nws.noaa.gov)\n\nAssurez-vous de respecter les conditions d'utilisation des données de la NOAA.",
+        "data": {
+          "icao": "Code d'aéroport OACI",
+          "terms_accepted": "J'accepte les termes et conditions de la source de données"
+        }
+      },
+      "units": {
+        "title": "Configuration des unités",
+        "description": "Sélectionnez les unités d'affichage pour les données météorologiques.\nChoisissez « Auto » pour utiliser les paramètres système de Home Assistant.\nChoisissez « Natif (METAR) » pour suivre les unités des messages de la station elle-même (par ex. nœuds, mètres et hPa pour les stations OACI ; nœuds, milles terrestres et inHg pour les stations américaines ; hauteur des nuages en pieds).",
+        "data": {
+          "temperature_unit": "Température",
+          "wind_speed_unit": "Vitesse du vent",
+          "visibility_unit": "Visibilité",
+          "pressure_unit": "Pression",
+          "altitude_unit": "Hauteur / Altitude des nuages"
+        }
+      }
+    },
+    "error": {
+      "invalid_icao": "Format du code OACI invalide",
+      "terms_not_accepted": "Vous devez accepter les termes et conditions",
+      "station_exists": "Cette station est déjà configurée",
+      "station_exists_other_entry": "Cette station est déjà configurée dans une autre entrée d'intégration",
+      "cannot_connect": "Échec de la connexion à la station",
+      "unknown": "Erreur inattendue"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Réglages METAR",
+        "menu_options": {
+          "units": "Configurer les unités",
+          "stations": "Gérer les stations",
+          "station_remove": "Supprimer une station"
+        }
+      },
+      "units": {
+        "title": "Configuration des unités",
+        "description": "Sélectionnez les unités d'affichage pour les données météorologiques.\nChoisissez « Auto » pour utiliser les paramètres système de Home Assistant.\nChoisissez « Natif (METAR) » pour suivre les unités des messages de la station elle-même (par ex. nœuds, mètres et hPa pour les stations OACI ; nœuds, milles terrestres et inHg pour les stations américaines ; hauteur des nuages en pieds).",
+        "data": {
+          "temperature_unit": "Température",
+          "wind_speed_unit": "Vitesse du vent",
+          "visibility_unit": "Visibilité",
+          "pressure_unit": "Pression",
+          "altitude_unit": "Hauteur / Altitude des nuages"
+        }
+      },
+      "stations": {
+        "title": "Gérer les stations",
+        "description": "Stations actuellement configurées :\n{stations}"
+      },
+      "station_add": {
+        "title": "Ajouter une station",
+        "description": "Saisissez le code OACI de la nouvelle station",
+        "data": {
+          "icao": "Code d'aéroport OACI"
+        }
+      },
+      "station_configure": {
+        "title": "Configuration de la station",
+        "description": "Souhaitez-vous ajouter une autre station ?",
+        "data": {
+          "add_another": "Ajouter une autre station"
+        }
+      },
+      "station_remove": {
+        "title": "Retirer une station",
+        "description": "Sélectionnez une station à retirer. Remarque : il doit rester au moins une station.",
+        "data": {
+          "station": "Station à supprimer"
+        }
+      }
+    },
+    "error": {
+      "cannot_remove_last": "Impossible de retirer la dernière station",
+      "station_exists": "Cette station est déjà configurée dans cette entrée",
+      "station_exists_other_entry": "Cette station est déjà configurée dans une autre entrée d'intégration"
+    }
+  },
+  "exceptions": {
+    "invalid_icao_format": {
+      "message": "Format de code OACI non valide : {station}"
+    },
+    "station_not_found": {
+      "message": "Station {station} introuvable dans les entrées de configuration"
+    },
+    "station_not_configured": {
+      "message": "La station {station} n'est pas configurée"
+    },
+    "storage_not_initialized": {
+      "message": "Stockage non initialisé"
+    },
+    "clear_history_timeout": {
+      "message": "Délai d'attente dépassé pour la purge de l'historique de la station {station}"
+    },
+    "clear_history_failed": {
+      "message": "Échec de la purge de l'historique pour la station {station} : {error}"
+    }
+  },
+  "services": {
+    "update_station": {
+      "name": "Mettre à jour la station",
+      "description": "Force la mise à jour des données METAR pour une station spécifique.",
+      "fields": {
+        "station": {
+          "name": "Station",
+          "description": "Code OACI de la station à mettre à jour"
+        }
+      }
+    },
+    "clear_history": {
+      "name": "Purger l'historique",
+      "description": "Purge les données historiques pour une station spécifique.",
+      "fields": {
+        "station": {
+          "name": "Station",
+          "description": "Code OACI de la station dont purger l'historique"
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "temperature": {
@@ -8,8 +134,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -21,8 +147,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -34,8 +160,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -47,8 +173,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -60,8 +186,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -73,8 +199,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -86,8 +212,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -99,8 +225,8 @@
               "rising": "En hausse",
               "falling": "En baisse",
               "stable": "Stable",
-              "veering": "Adonnant",
-              "backing": "Refusant"
+              "veering": "Tournant à droite",
+              "backing": "Tournant à gauche"
             }
           }
         }
@@ -240,26 +366,26 @@
           "light_freezing_fog": "Brouillard givrant faible",
           "heavy_freezing_fog": "Brouillard givrant fort",
           "vicinity_freezing_fog": "Brouillard givrant à proximité",
-          "blowing_snow": "Chasse-neige élevée",
-          "light_blowing_snow": "Chasse-neige élevée faible",
-          "heavy_blowing_snow": "Chasse-neige élevée forte",
-          "vicinity_blowing_snow": "Chasse-neige élevée à proximité",
-          "blowing_sand": "Chasse-sable élevée",
-          "light_blowing_sand": "Chasse-sable élevée faible",
-          "heavy_blowing_sand": "Chasse-sable élevée forte",
-          "vicinity_blowing_sand": "Chasse-sable élevée à proximité",
-          "blowing_dust": "Chasse-poussière élevée",
-          "light_blowing_dust": "Chasse-poussière élevée faible",
-          "heavy_blowing_dust": "Chasse-poussière élevée forte",
-          "vicinity_blowing_dust": "Chasse-poussière élevée à proximité",
-          "low_drifting_snow": "Chasse-neige basse",
-          "light_low_drifting_snow": "Chasse-neige basse faible",
-          "heavy_low_drifting_snow": "Chasse-neige basse forte",
-          "vicinity_low_drifting_snow": "Chasse-neige basse à proximité",
-          "low_drifting_sand": "Chasse-sable basse",
-          "light_low_drifting_sand": "Chasse-sable basse faible",
-          "heavy_low_drifting_sand": "Chasse-sable basse forte",
-          "vicinity_low_drifting_sand": "Chasse-sable basse à proximité",
+          "blowing_snow": "Poudrerie élevée",
+          "light_blowing_snow": "Poudrerie élevée faible",
+          "heavy_blowing_snow": "Poudrerie élevée forte",
+          "vicinity_blowing_snow": "Poudrerie élevée à proximité",
+          "blowing_sand": "Nuage de sable élevé",
+          "light_blowing_sand": "Nuage de sable élevé faible",
+          "heavy_blowing_sand": "Nuage de sable élevé fort",
+          "vicinity_blowing_sand": "Nuage de sable élevé à proximité",
+          "blowing_dust": "Nuage de poussière élevé",
+          "light_blowing_dust": "Nuage de poussière élevé faible",
+          "heavy_blowing_dust": "Nuage de poussière élevé fort",
+          "vicinity_blowing_dust": "Nuage de poussière élevé à proximité",
+          "low_drifting_snow": "Poudrerie basse",
+          "light_low_drifting_snow": "Poudrerie basse faible",
+          "heavy_low_drifting_snow": "Poudrerie basse forte",
+          "vicinity_low_drifting_snow": "Poudrerie basse à proximité",
+          "low_drifting_sand": "Nuage de sable bas",
+          "light_low_drifting_sand": "Nuage de sable bas faible",
+          "heavy_low_drifting_sand": "Nuage de sable bas fort",
+          "vicinity_low_drifting_sand": "Nuage de sable bas à proximité",
           "shallow_fog": "Brouillard mince",
           "light_shallow_fog": "Brouillard mince faible",
           "heavy_shallow_fog": "Brouillard mince fort",
@@ -301,7 +427,7 @@
           "recent_ice_pellets": "Granules de glace récents",
           "recent_thunderstorm": "Orage récent",
           "recent_freezing_rain": "Pluie verglaçante récente",
-          "recent_blowing_snow": "Chasse-neige élevée récente"
+          "recent_blowing_snow": "Poudrerie récente"
         }
       },
       "cloud_coverage_state": {

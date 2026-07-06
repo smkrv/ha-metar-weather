@@ -267,8 +267,10 @@ def build_entity_sensor(lang: str, weather: dict) -> dict:
             "rising": {"en": "Rising", "de": "Steigend", "ru": "Растёт", "fr": "En hausse"}[lang],
             "falling": {"en": "Falling", "de": "Fallend", "ru": "Падает", "fr": "En baisse"}[lang],
             "stable": {"en": "Stable", "de": "Stabil", "ru": "Стабильно", "fr": "Stable"}[lang],
-            "veering": {"en": "Veering", "de": "Rechtsdrehend", "ru": "По часовой", "fr": "Adonnant"}[lang],
-            "backing": {"en": "Backing", "de": "Linksdrehend", "ru": "Против часовой", "fr": "Refusant"}[lang],
+            # fr "Tournant à droite/gauche" per the French contributor (PR #2):
+            # the sailing decodes Adonnant/Refusant read as jargon in a weather UI.
+            "veering": {"en": "Veering", "de": "Rechtsdrehend", "ru": "По часовой", "fr": "Tournant à droite"}[lang],
+            "backing": {"en": "Backing", "de": "Linksdrehend", "ru": "Против часовой", "fr": "Tournant à gauche"}[lang],
         }}
     }
     measurement = ("temperature", "dew_point", "wind_speed", "wind_gust",

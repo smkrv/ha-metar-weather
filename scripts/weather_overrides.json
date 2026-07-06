@@ -801,121 +801,121 @@
     "en": "Blowing snow",
     "de": "Schneetreiben",
     "ru": "Низовая метель",
-    "fr": "Chasse-neige élevée"
+    "fr": "Poudrerie élevée"
   },
   "light_blowing_snow": {
     "en": "Light blowing snow",
     "de": "Leichtes Schneetreiben",
     "ru": "Слабая низовая метель",
-    "fr": "Chasse-neige élevée faible"
+    "fr": "Poudrerie élevée faible"
   },
   "heavy_blowing_snow": {
     "en": "Heavy blowing snow",
     "de": "Starkes Schneetreiben",
     "ru": "Сильная низовая метель",
-    "fr": "Chasse-neige élevée forte"
+    "fr": "Poudrerie élevée forte"
   },
   "vicinity_blowing_snow": {
     "en": "Blowing snow in the vicinity",
     "de": "Schneetreiben in der Nähe",
     "ru": "Низовая метель в окрестности",
-    "fr": "Chasse-neige élevée à proximité"
+    "fr": "Poudrerie élevée à proximité"
   },
   "blowing_sand": {
     "en": "Blowing sand",
     "de": "Sandtreiben",
     "ru": "Низовой перенос песка",
-    "fr": "Chasse-sable élevée"
+    "fr": "Nuage de sable élevé"
   },
   "light_blowing_sand": {
     "en": "Light blowing sand",
     "de": "Leichtes Sandtreiben",
     "ru": "Слабый низовой перенос песка",
-    "fr": "Chasse-sable élevée faible"
+    "fr": "Nuage de sable élevé faible"
   },
   "heavy_blowing_sand": {
     "en": "Heavy blowing sand",
     "de": "Starkes Sandtreiben",
     "ru": "Сильный низовой перенос песка",
-    "fr": "Chasse-sable élevée forte"
+    "fr": "Nuage de sable élevé fort"
   },
   "vicinity_blowing_sand": {
     "en": "Blowing sand in the vicinity",
     "de": "Sandtreiben in der Nähe",
     "ru": "Низовой перенос песка в окрестности",
-    "fr": "Chasse-sable élevée à proximité"
+    "fr": "Nuage de sable élevé à proximité"
   },
   "blowing_dust": {
     "en": "Blowing widespread dust",
     "de": "Staubtreiben",
     "ru": "Низовой перенос пыли",
-    "fr": "Chasse-poussière élevée"
+    "fr": "Nuage de poussière élevé"
   },
   "light_blowing_dust": {
     "en": "Light blowing widespread dust",
     "de": "Leichtes Staubtreiben",
     "ru": "Слабый низовой перенос пыли",
-    "fr": "Chasse-poussière élevée faible"
+    "fr": "Nuage de poussière élevé faible"
   },
   "heavy_blowing_dust": {
     "en": "Heavy blowing widespread dust",
     "de": "Starkes Staubtreiben",
     "ru": "Сильный низовой перенос пыли",
-    "fr": "Chasse-poussière élevée forte"
+    "fr": "Nuage de poussière élevé fort"
   },
   "vicinity_blowing_dust": {
     "en": "Blowing widespread dust in the vicinity",
     "de": "Staubtreiben in der Nähe",
     "ru": "Низовой перенос пыли в окрестности",
-    "fr": "Chasse-poussière élevée à proximité"
+    "fr": "Nuage de poussière élevé à proximité"
   },
   "low_drifting_snow": {
     "en": "Low drifting snow",
     "de": "Schneefegen",
     "ru": "Позёмок",
-    "fr": "Chasse-neige basse"
+    "fr": "Poudrerie basse"
   },
   "light_low_drifting_snow": {
     "en": "Light low drifting snow",
     "de": "Leichtes Schneefegen",
     "ru": "Слабый позёмок",
-    "fr": "Chasse-neige basse faible"
+    "fr": "Poudrerie basse faible"
   },
   "heavy_low_drifting_snow": {
     "en": "Heavy low drifting snow",
     "de": "Starkes Schneefegen",
     "ru": "Сильный позёмок",
-    "fr": "Chasse-neige basse forte"
+    "fr": "Poudrerie basse forte"
   },
   "vicinity_low_drifting_snow": {
     "en": "Low drifting snow in the vicinity",
     "de": "Schneefegen in der Nähe",
     "ru": "Позёмок в окрестности",
-    "fr": "Chasse-neige basse à proximité"
+    "fr": "Poudrerie basse à proximité"
   },
   "low_drifting_sand": {
     "en": "Low drifting sand",
     "de": "Sandfegen",
     "ru": "Песчаный позёмок",
-    "fr": "Chasse-sable basse"
+    "fr": "Nuage de sable bas"
   },
   "light_low_drifting_sand": {
     "en": "Light low drifting sand",
     "de": "Leichtes Sandfegen",
     "ru": "Слабый песчаный позёмок",
-    "fr": "Chasse-sable basse faible"
+    "fr": "Nuage de sable bas faible"
   },
   "heavy_low_drifting_sand": {
     "en": "Heavy low drifting sand",
     "de": "Starkes Sandfegen",
     "ru": "Сильный песчаный позёмок",
-    "fr": "Chasse-sable basse forte"
+    "fr": "Nuage de sable bas fort"
   },
   "vicinity_low_drifting_sand": {
     "en": "Low drifting sand in the vicinity",
     "de": "Sandfegen in der Nähe",
     "ru": "Песчаный позёмок в окрестности",
-    "fr": "Chasse-sable basse à proximité"
+    "fr": "Nuage de sable bas à proximité"
   },
   "shallow_fog": {
     "en": "Shallow fog",
@@ -1167,6 +1167,6 @@
     "en": "Recent blowing snow",
     "de": "Kürzliches Schneetreiben",
     "ru": "Недавняя низовая метель",
-    "fr": "Chasse-neige élevée récente"
+    "fr": "Poudrerie récente"
   }
 }
