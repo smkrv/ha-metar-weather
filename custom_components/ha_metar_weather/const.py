@@ -89,6 +89,13 @@ MAX_HISTORY_DISPLAY: Final[int] = 24  # Number of historical records to show in 
 # Error handling
 RETRY_INTERVALS: Final[tuple[int, ...]] = (2, 5, 10, 30)
 
+# A report dated further ahead of the local clock than this is treated as
+# mis-keyed (a wrong DDHHMM group decoded into the future) and is neither
+# selected nor kept as the held observation. Minutes, not seconds: AWC
+# legitimately carries reports filed up to ~10 min before their nominal
+# cycle time.
+FUTURE_OBSERVATION_TOLERANCE: Final[timedelta] = timedelta(minutes=15)
+
 # API configuration
 AWC_API_BASE_URL: Final[str] = "https://aviationweather.gov/api/data/metar"
 AWC_API_TIMEOUT: Final[int] = 30  # seconds

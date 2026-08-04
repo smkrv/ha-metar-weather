@@ -11,10 +11,11 @@ import logging
 import asyncio
 import re
 from asyncio import timeout as async_timeout
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 import voluptuous as vol
 
+from homeassistant.util import dt as dt_util
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import (
     HomeAssistant,
@@ -43,6 +44,7 @@ from .const import (
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_ALTITUDE_UNIT,
     DEFAULT_SCAN_INTERVAL,
+    FUTURE_OBSERVATION_TOLERANCE,
     RETRY_INTERVALS,
     ICAO_REGEX,
 )
@@ -70,7 +72,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         _LOGGER.error("Failed to initialize storage: %s", err)
         return False
 
-    # Register services once during component setup (not per entry)
+    _async_register_services(hass)
+
+    return True
+
+
+def _async_register_services(hass: HomeAssistant) -> None:
+    """Register integration services (idempotent).
+
+    Called from both async_setup and async_setup_entry: an options-flow
+    change reloads the entry, and unloading the last entry removes the
+    services - but async_setup does not run again on reload, so entry setup
+    must be able to bring them back.
+    """
     async def async_update_station(call: ServiceCall) -> None:
         """Handle forced update service call."""
         station = call.data["station"].upper()
@@ -190,8 +204,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             })
         )
 
-    return True
-
 
 class MetarDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching METAR data."""
@@ -214,6 +226,63 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         self.station = station
         self._retry_count = 0
         self._consecutive_failures = 0
+        self._accepted_source: str | None = None
+
+    @property
+    def accepted_source(self) -> str | None:
+        """Source of the data currently held.
+
+        ``client.last_source`` names the source of the *last fetch*, which
+        may have been rejected as stale; this names the source whose data
+        the sensors actually display.
+        """
+        return self._accepted_source
+
+    def _reject_stale_observation(self, fetched: dict) -> dict:
+        """Keep the held data when a fetch yields an older observation.
+
+        A source can serve a report for an already-superseded cycle - a
+        re-filed COR of an old observation, or a lagging mirror (issue #16).
+        Observation time only moves forward, so a strictly older report is a
+        correction to history, never the current weather. A report with the
+        *same* observation time passes through: a COR of the current cycle
+        must update the values. Covers both the AWC and the AVWX path.
+        """
+        held = self.data
+        if not held:
+            return fetched
+        held_time = dt_util.parse_datetime(held.get("observation_time") or "")
+        fetched_time = dt_util.parse_datetime(
+            fetched.get("observation_time") or ""
+        )
+        if held_time is None or fetched_time is None:
+            return fetched
+        if held_time.tzinfo is None:
+            held_time = held_time.replace(tzinfo=timezone.utc)
+        if fetched_time.tzinfo is None:
+            fetched_time = fetched_time.replace(tzinfo=timezone.utc)
+        if held_time > dt_util.utcnow() + FUTURE_OBSERVATION_TOLERANCE:
+            # A future-dated report (mis-keyed DDHHMM group) must not become
+            # a high-water mark that rejects genuine reports until the clock
+            # catches up. Only reachable via the AVWX path or when a future
+            # report was the sole candidate; take the fetched report.
+            _LOGGER.warning(
+                "Held observation time %s for %s is implausibly in the "
+                "future; accepting the fetched report",
+                held_time.isoformat(),
+                self.station,
+            )
+            return fetched
+        if fetched_time < held_time:
+            _LOGGER.warning(
+                "Ignoring stale report for %s: observation time %s is older "
+                "than the held %s; keeping current data",
+                self.station,
+                fetched_time.isoformat(),
+                held_time.isoformat(),
+            )
+            return held
+        return fetched
 
     async def _async_update_data(self):
         """Fetch data from API with retry logic."""
@@ -226,6 +295,10 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 data = await self.client.fetch_data()
                 if data:
+                    accepted = self._reject_stale_observation(data)
+                    if accepted is data:
+                        self._accepted_source = self.client.last_source
+                    data = accepted
                     # Reset failure counter on success
                     self._consecutive_failures = 0
                     self._retry_count = 0
@@ -300,6 +373,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.error("Failed to initialize storage in setup_entry: %s", err)
             # Continue without storage - sensors will work but no history
+
+    # Unloading the last entry removes the services; an options-flow reload
+    # re-enters here without re-running async_setup, so re-register.
+    _async_register_services(hass)
 
     # Validate stations list exists and is not empty
     stations = entry.data.get(CONF_STATIONS, [])

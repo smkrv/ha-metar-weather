@@ -121,8 +121,9 @@ async def test_auto_units_follow_ha_metric_system(hass, aioclient_mock):
     assert temp.attributes["unit_of_measurement"] == "°C"
     assert float(temp.state) == pytest.approx(14.0, abs=1e-9)
 
-    # History attributes stay in internal base units but are rounded for
-    # readability; statistics follow the same contract.
+    # Display unit equals the internal base unit here, so the history
+    # attributes keep the stored values, rounded for readability. Non-metric
+    # display units are covered in test_attribute_units.py (issue #17).
     assert wind.attributes["historical_data"] == [5.56]
     assert wind.attributes["min_24h"] == 5.56
     assert wind.attributes["max_24h"] == 5.56

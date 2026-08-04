@@ -30,6 +30,7 @@ from .const import (
     AWC_API_BASE_URL,
     AWC_API_TIMEOUT,
     DEFAULT_EXCELLENT_VISIBILITY_KM,
+    FUTURE_OBSERVATION_TOLERANCE,
 )
 from .utils import calculate_humidity
 
@@ -155,8 +156,60 @@ class AWCApiClient:
         """
         result = await self.fetch_metar(icao)
         if result and len(result) > 0:
-            return result[0]
+            return self.select_newest_report(result)
         return None
+
+    @staticmethod
+    def _parse_time_value(value: Any) -> Optional[float]:
+        """AWC time field (epoch int or ISO string) as epoch seconds."""
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return float(value) if value >= 0 else None
+        if isinstance(value, str):
+            text = value[:-1] + "+00:00" if value.endswith("Z") else value
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
+        return None
+
+    @staticmethod
+    def select_newest_report(
+        reports: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Pick the report with the newest observation time.
+
+        AWC windows and orders its response by *receipt* time, so the first
+        item can be a freshly re-filed COR of an hours-old cycle (issue #16:
+        KSDL re-issuing corrections during a dust event regressed sensors by
+        4 hours). The newest ``obsTime`` wins; among reports for the same
+        cycle (an original and its COR) the newest ``receiptTime`` wins.
+        Reports dated beyond a small future tolerance are skipped: a
+        mis-keyed DDHHMM group decoded hours ahead would otherwise beat the
+        genuine current observation and wedge the coordinator's stale guard.
+        Falls back to AWC's first item only when no report carries a
+        plausible observation time.
+        """
+        max_plausible = (
+            datetime.now(timezone.utc) + FUTURE_OBSERVATION_TOLERANCE
+        ).timestamp()
+        best: Optional[Dict[str, Any]] = None
+        best_key: Optional[tuple[float, float]] = None
+        for report in reports:
+            obs = AWCApiClient._parse_time_value(report.get("obsTime"))
+            if obs is None or obs > max_plausible:
+                continue
+            receipt = AWCApiClient._parse_time_value(
+                report.get("receiptTime")
+            )
+            key = (obs, receipt if receipt is not None else float("-inf"))
+            if best_key is None or key > best_key:
+                best, best_key = report, key
+        return best if best is not None else reports[0]
 
     @staticmethod
     def parse_awc_response(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,7 +329,12 @@ class AWCApiClient:
             humidity = calculate_humidity(temp, dewp)
 
             # Parse observation time
-            # AWC API returns obsTime as epoch int (since ~2026) or ISO string
+            # AWC API returns obsTime as epoch int (since ~2026) or ISO string.
+            # A missing or garbled obsTime yields None, never a fabricated
+            # "now": the coordinator orders reports by this field, and a
+            # wall-clock stamp would out-rank every genuine report for a full
+            # cycle and freeze the sensors (issue #16 review).
+            observation_time = None
             obs_time = data.get("obsTime")
             if obs_time is not None:
                 try:
@@ -292,23 +350,23 @@ class AWCApiClient:
                         observation_time = datetime.fromisoformat(obs_time_parsed)
                     else:
                         _LOGGER.warning(
-                            "Unexpected obsTime type %s for %s, using current time",
+                            "Unexpected obsTime type %s for %s; observation time unknown",
                             type(obs_time).__name__,
                             data.get("icaoId", "unknown"),
                         )
-                        observation_time = datetime.now(timezone.utc)
                 except (ValueError, OSError, OverflowError) as err:
                     _LOGGER.warning(
-                        "Failed to parse observation time '%s': %s. Using current time.",
-                        obs_time, err
+                        "Failed to parse observation time '%s' for %s: %s; "
+                        "observation time unknown",
+                        obs_time,
+                        data.get("icaoId", "unknown"),
+                        err,
                     )
-                    observation_time = datetime.now(timezone.utc)
             else:
                 _LOGGER.warning(
-                    "No observation time (obsTime) in AWC response for %s, using current time",
+                    "No observation time (obsTime) in AWC response for %s",
                     data.get("icaoId", "unknown")
                 )
-                observation_time = datetime.now(timezone.utc)
 
             raw_metar = data.get("rawOb", "")
 
@@ -324,7 +382,11 @@ class AWCApiClient:
             parsed = {
                 "raw_metar": raw_metar,
                 "station_name": data.get("name"),
-                "observation_time": observation_time.isoformat(),
+                "observation_time": (
+                    observation_time.isoformat()
+                    if observation_time is not None
+                    else None
+                ),
                 "temperature": temp,
                 "dew_point": dewp,
                 "humidity": humidity,

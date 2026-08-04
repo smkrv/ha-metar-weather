@@ -319,24 +319,30 @@ class MetarApiClient:
                 parsed_data["station_name"] = station_name
 
             # Add observation time
-            # AVWX returns Timestamp object with .dt attribute, not datetime directly
+            # AVWX returns Timestamp object with .dt attribute, not datetime
+            # directly. No usable time -> leave the field unset: a fabricated
+            # wall-clock stamp would out-rank every genuine report in the
+            # coordinator's stale guard (issue #16 review).
             time_data = getattr(self._avwx_metar.data, 'time', None)
             if time_data is not None and hasattr(time_data, 'dt') and time_data.dt:
                 observation_time = time_data.dt
             elif isinstance(time_data, datetime):
                 observation_time = time_data
             else:
-                observation_time = datetime.now(timezone.utc)
+                observation_time = None
+                _LOGGER.warning(
+                    "No observation time in AVWX data for %s", self.icao
+                )
 
-            # Ensure proper timezone conversion (not just replacement)
-            if observation_time.tzinfo is None:
-                # Naive datetime - assume UTC
-                observation_time = observation_time.replace(tzinfo=timezone.utc)
-            else:
-                # Aware datetime - convert to UTC
-                observation_time = observation_time.astimezone(timezone.utc)
-
-            parsed_data["observation_time"] = observation_time.isoformat()
+            if observation_time is not None:
+                # Ensure proper timezone conversion (not just replacement)
+                if observation_time.tzinfo is None:
+                    # Naive datetime - assume UTC
+                    observation_time = observation_time.replace(tzinfo=timezone.utc)
+                else:
+                    # Aware datetime - convert to UTC
+                    observation_time = observation_time.astimezone(timezone.utc)
+                parsed_data["observation_time"] = observation_time.isoformat()
 
             return self._validate_and_round(parsed_data)
 

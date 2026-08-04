@@ -34,6 +34,13 @@ from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
 )
+from homeassistant.util.unit_conversion import (
+    BaseUnitConverter,
+    DistanceConverter,
+    PressureConverter,
+    SpeedConverter,
+    TemperatureConverter,
+)
 
 from .const import (
     DOMAIN,
@@ -79,6 +86,16 @@ _UNIT_CONF_KEYS: dict[str, str] = {
     "visibility": CONF_VISIBILITY_UNIT,
     "pressure": CONF_PRESSURE_UNIT,
     "cloud_coverage_height": CONF_ALTITUDE_UNIT,
+}
+
+# Statistics attributes (issue #17): the same converters core applies to the
+# state, so historical_data / min_24h / max_24h / average_24h always match the
+# sensor's unit_of_measurement.
+_ATTRIBUTE_CONVERTERS: dict[SensorDeviceClass, type[BaseUnitConverter]] = {
+    SensorDeviceClass.TEMPERATURE: TemperatureConverter,
+    SensorDeviceClass.WIND_SPEED: SpeedConverter,
+    SensorDeviceClass.DISTANCE: DistanceConverter,
+    SensorDeviceClass.ATMOSPHERIC_PRESSURE: PressureConverter,
 }
 
 # Config entry key -> NATIVE_METAR_UNITS key.
@@ -542,9 +559,16 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
             attrs[ATTR_LAST_UPDATE] = self.coordinator.data.get("observation_time")
             attrs["station"] = self._station
 
-            # Add data source info if available
-            if hasattr(self.coordinator, 'client') and hasattr(self.coordinator.client, 'last_source'):
-                attrs["data_source"] = self.coordinator.client.last_source
+            # Source of the data on display. The coordinator latches it when
+            # a report is accepted: client.last_source alone would name the
+            # source of a fetch whose data was rejected as stale (issue #16
+            # review).
+            source = getattr(self.coordinator, "accepted_source", None)
+            if source is None:
+                client = getattr(self.coordinator, "client", None)
+                source = getattr(client, "last_source", None)
+            if source is not None:
+                attrs["data_source"] = source
 
             station_name = self.coordinator.data.get("station_name")
             if station_name is not None:
@@ -582,11 +606,24 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                 storage = self.hass.data[DOMAIN]["storage"]
                 history = storage.get_station_history(self._station, self.entity_description.key)
                 if history:
-                    # Attributes are in the internal base units (km/h, km,
-                    # hPa). Storage keeps full precision for exact unit
-                    # round-trips; round here so panels stay readable.
+                    # Storage keeps the internal base units (km/h, km, hPa)
+                    # at full precision; the attributes are converted to the
+                    # sensor's display unit - HA converts only the state,
+                    # never attributes (issue #17) - and rounded so panels
+                    # stay readable.
+                    convert = self._history_display_converter()
+
+                    def _display(value: Any) -> Any:
+                        if isinstance(value, bool) or not isinstance(
+                            value, (int, float)
+                        ):
+                            return value
+                        if convert is not None:
+                            return round(convert(float(value)), 2)
+                        return round(value, 2) if isinstance(value, float) else value
+
                     attrs[ATTR_HISTORICAL_DATA] = [
-                        round(value, 2) if isinstance(value, float) else value
+                        _display(value)
                         for value in history[-MAX_HISTORY_DISPLAY:]
                     ]
 
@@ -605,9 +642,11 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                                         continue  # Skip non-numeric strings
 
                             if values:
-                                attrs["min_24h"] = round(min(values), 2)
-                                attrs["max_24h"] = round(max(values), 2)
-                                attrs["average_24h"] = round(sum(values) / len(values), 2)
+                                attrs["min_24h"] = _display(min(values))
+                                attrs["max_24h"] = _display(max(values))
+                                attrs["average_24h"] = _display(sum(values) / len(values))
+                                # The trend runs on the unconverted series:
+                                # the thresholds are defined in base units.
                                 attrs[ATTR_TREND] = self._calculate_trend(values)
 
                         except (ValueError, TypeError) as err:
@@ -618,6 +657,31 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
                             )
 
         return attrs
+
+    def _history_display_converter(self) -> Optional[Callable[[float], float]]:
+        """Converter from the internal base unit to the display unit.
+
+        ``unit_of_measurement`` already resolves what HA converts the state
+        to - the configured suggestion or a manual per-entity override - so
+        the attributes follow the state exactly. None means the display unit
+        equals the base unit (or the sensor has no convertible unit) and the
+        values pass through unchanged.
+        """
+        device_class = self.entity_description.device_class
+        if device_class is None:
+            return None
+        converter = _ATTRIBUTE_CONVERTERS.get(device_class)
+        if converter is None:
+            return None
+        native = self.native_unit_of_measurement
+        display = self.unit_of_measurement
+        if (
+            native == display
+            or native not in converter.VALID_UNITS
+            or display not in converter.VALID_UNITS
+        ):
+            return None
+        return converter.converter_factory(native, display)
 
     def _calculate_trend(self, values: list[float]) -> str:
         """Calculate trend based on historical values.
