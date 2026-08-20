@@ -12,6 +12,7 @@ import asyncio
 import re
 from asyncio import timeout as async_timeout
 from datetime import timedelta, timezone
+from typing import Final
 
 import voluptuous as vol
 
@@ -31,6 +32,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.exceptions import ServiceValidationError
 
 from .api_client import MetarApiClient
+from .taf_client import TafApiClient
 from .storage import MetarHistoryStorage
 from .const import (
     DOMAIN,
@@ -44,10 +46,16 @@ from .const import (
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_ALTITUDE_UNIT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_TAF_SCAN_INTERVAL,
     FUTURE_OBSERVATION_TOLERANCE,
     RETRY_INTERVALS,
     ICAO_REGEX,
 )
+
+# hass.data[DOMAIN] keys that are not a {station: coordinator} map for a
+# METAR config entry - both the update_station/clear_history services below
+# and async_unload_entry's "any entries left?" check must skip these.
+_NON_ENTRY_DATA_KEYS: Final[frozenset[str]] = frozenset({"storage", "taf"})
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +109,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
         # Search for the station across all config entries
         # Use list() to prevent RuntimeError if dict changes during iteration
         for entry_id, entry_data in list(hass.data[DOMAIN].items()):
-            if entry_id == "storage":
+            if entry_id in _NON_ENTRY_DATA_KEYS:
                 continue
             if isinstance(entry_data, dict):
                 coordinator = entry_data.get(station)
@@ -144,7 +152,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
         # Use list() to prevent RuntimeError if dict changes during iteration
         station_found = False
         for entry_id, entry_data in list(hass.data[DOMAIN].items()):
-            if entry_id == "storage":
+            if entry_id in _NON_ENTRY_DATA_KEYS:
                 continue
             if isinstance(entry_data, dict) and station in entry_data:
                 station_found = True
@@ -356,6 +364,112 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         raise UpdateFailed(f"Error fetching data after {attempts_made} attempt(s): {last_error}") from last_error
 
 
+class TafDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching TAF data.
+
+    Deliberately kept simpler than MetarDataUpdateCoordinator: with only
+    the raw TAF string exposed (no periods/history/trend), the coordinator
+    just needs retry-with-backoff and a lightweight staleness guard on
+    issue_time so a lagging fetch can't overwrite a newer TAF with an
+    older AMD/COR.
+    """
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: TafApiClient,
+        station: str,
+        update_interval: timedelta,
+    ):
+        """Initialize the coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_{station}_taf",
+            update_interval=update_interval,
+        )
+        self.client = client
+        self.station = station
+        self._retry_count = 0
+        self._consecutive_failures = 0
+
+    def _reject_stale_taf(self, fetched: dict) -> dict:
+        """Keep the held TAF when a fetch yields an older/equal issue_time.
+
+        Mirrors MetarDataUpdateCoordinator._reject_stale_observation, but
+        compares issue_time: a TAF is valid until superseded by a newer
+        issuance (scheduled or AMD), so an older issue_time is never the
+        current forecast. issue_time is AWC's raw string here (not yet
+        normalized), so this is a plain string comparison of ISO-ish
+        timestamps - good enough since AWC issues them in that form and a
+        malformed value simply skips the guard (fetched wins) rather than
+        crashing.
+        """
+        held = self.data
+        if not held:
+            return fetched
+        held_time = held.get("issue_time")
+        fetched_time = fetched.get("issue_time")
+        if not held_time or not fetched_time:
+            return fetched
+        if fetched_time < held_time:
+            _LOGGER.warning(
+                "Ignoring stale TAF for %s: issue time %s is older than "
+                "the held %s; keeping current data",
+                self.station,
+                fetched_time,
+                held_time,
+            )
+            return held
+        return fetched
+
+    async def _async_update_data(self):
+        """Fetch TAF data from API with retry logic."""
+        last_error = None
+        attempts_made = 0
+
+        for attempt, delay in enumerate(RETRY_INTERVALS):
+            attempts_made = attempt + 1
+            try:
+                data = await self.client.fetch_data()
+                if data:
+                    data = self._reject_stale_taf(data)
+                    self._consecutive_failures = 0
+                    self._retry_count = 0
+                    _LOGGER.debug("Updated TAF for %s: %s", self.station, data)
+                    return data
+
+                # Station simply has no current TAF (common for smaller
+                # airports) - not an error, retrying won't help.
+                _LOGGER.debug("No TAF available for %s", self.station)
+                return None
+
+            except Exception as err:
+                last_error = err
+                self._retry_count = attempt + 1
+                _LOGGER.warning(
+                    "TAF attempt %d/%d failed for %s: %s. Retrying in %ds...",
+                    attempt + 1,
+                    len(RETRY_INTERVALS),
+                    self.station,
+                    err,
+                    delay,
+                )
+                if attempt < len(RETRY_INTERVALS) - 1:
+                    await asyncio.sleep(delay)
+
+        self._consecutive_failures += 1
+        _LOGGER.error(
+            "TAF fetch failed for %s after %d attempt(s). Error: %s",
+            self.station,
+            attempts_made,
+            last_error,
+        )
+        raise UpdateFailed(
+            f"Error fetching TAF after {attempts_made} attempt(s): {last_error}"
+        ) from last_error
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up METAR Weather from a config entry."""
     # Ensure storage is initialized (handles reload case where async_setup isn't called again)
@@ -421,6 +535,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN][entry.entry_id] = coordinators
 
+    # TAF coordinators live in a separate namespace (hass.data[DOMAIN]["taf"])
+    # rather than mixed into `coordinators` above, so the existing
+    # update_station/clear_history services and the METAR sensor setup keep
+    # iterating a pure {station: MetarDataUpdateCoordinator} map unchanged.
+    # A station without a current TAF (common for smaller airports) is
+    # skipped rather than failing the whole config entry - it simply gets
+    # no TAF sensor.
+    taf_coordinators: dict[str, TafDataUpdateCoordinator] = {}
+    for station in stations:
+        station_upper = station.upper()
+        try:
+            taf_client = TafApiClient(hass, station_upper)
+            taf_coordinator = TafDataUpdateCoordinator(
+                hass,
+                taf_client,
+                station_upper,
+                DEFAULT_TAF_SCAN_INTERVAL,
+            )
+            await taf_coordinator.async_config_entry_first_refresh()
+
+            if taf_coordinator.data:
+                taf_coordinators[station_upper] = taf_coordinator
+            else:
+                _LOGGER.info(
+                    "No TAF available for station %s; skipping TAF sensor",
+                    station_upper,
+                )
+        except Exception as err:
+            _LOGGER.warning(
+                "Error setting up TAF for station %s: %s", station_upper, err
+            )
+            continue
+
+    hass.data[DOMAIN].setdefault("taf", {})[entry.entry_id] = taf_coordinators
+
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -443,11 +592,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
+        hass.data[DOMAIN].get("taf", {}).pop(entry.entry_id, None)
 
-        # Check if this was the last config entry (only "storage" key remains)
+        # Check if this was the last config entry (only bookkeeping keys remain)
         remaining_entries = [
             key for key in hass.data[DOMAIN].keys()
-            if key != "storage"
+            if key not in _NON_ENTRY_DATA_KEYS
         ]
 
         if not remaining_entries:
@@ -467,6 +617,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             # Remove storage reference (storage object will be garbage collected)
             hass.data[DOMAIN].pop("storage", None)
+            hass.data[DOMAIN].pop("taf", None)
 
             # Clear domain data entirely if empty
             if not hass.data[DOMAIN]:

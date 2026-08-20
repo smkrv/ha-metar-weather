@@ -53,6 +53,7 @@ from .const import (
     ATTR_LAST_UPDATE,
     ATTR_STATION_NAME,
     ATTR_RAW_METAR,
+    ATTR_RAW_TAF,
     ATTR_HISTORICAL_DATA,
     ATTR_TREND,
     VALUE_RANGES,
@@ -739,6 +740,106 @@ class MetarSensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.last_update_success and self.coordinator.data is not None
 
 
+@dataclass
+class TafSensorEntityDescription(SensorEntityDescription):
+    """Class describing TAF sensor entities."""
+    value_fn: Callable[[dict], Any] = lambda d: None
+
+
+# Only the raw TAF string is exposed right now. AWC's TAF JSON does carry a
+# fully-decoded per-period forecast (see taf_client.py's module docstring)
+# if a "decoded" sensor is wanted later - add further
+# TafSensorEntityDescription entries here and extend taf_client.py's
+# canonicalization accordingly.
+TAF_SENSOR_TYPES: tuple[TafSensorEntityDescription, ...] = (
+    TafSensorEntityDescription(
+        key="raw_taf",
+        name="Raw TAF",
+        value_fn=lambda data: data.get("raw_taf"),
+        icon="mdi:text-box-outline",
+    ),
+)
+
+
+class TafSensor(CoordinatorEntity, SensorEntity):
+    """Implementation of a TAF sensor.
+
+    Separate, smaller class rather than reusing MetarSensor: TAF data has
+    no per-field unit configuration and no history/trend. Shares
+    MetarSensor's device_info (same device: "METAR {station}"), unique_id,
+    and available() conventions so TAF sensors group under the same HA
+    device instead of creating a second device per station.
+    """
+
+    entity_description: TafSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: DataUpdateCoordinator,
+        station: str,
+        description: TafSensorEntityDescription,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._station = station
+        self._config_entry = config_entry
+        self._attr_unique_id = f"{DOMAIN}_{station}_{description.key}"
+        self._attr_name = f"TAF {station} {description.name}"
+
+        # Same device as the station's METAR sensors (identical
+        # `identifiers`, so HA groups them together instead of creating a
+        # second "TAF {station}" device).
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, station)},
+            "name": f"METAR {station}",
+            "manufacturer": "NOAA / AWC",
+            "model": "METAR Weather Station",
+            "sw_version": VERSION,
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
+    @property
+    def native_value(self) -> Any:
+        """Return the state of the sensor."""
+        try:
+            if not self.coordinator.data:
+                return None
+            return self.entity_description.value_fn(self.coordinator.data)
+        except Exception as err:
+            _LOGGER.error(
+                "Error getting TAF value for %s_%s: %s",
+                self._station,
+                self.entity_description.key,
+                err,
+            )
+            return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        attrs: dict[str, Any] = {}
+
+        if self.coordinator.data:
+            attrs["station"] = self._station
+
+            station_name = self.coordinator.data.get("station_name")
+            if station_name is not None:
+                attrs[ATTR_STATION_NAME] = station_name
+
+            issue_time = self.coordinator.data.get("issue_time")
+            if issue_time is not None:
+                attrs["issue_time"] = issue_time
+
+        return attrs
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success and self.coordinator.data is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -819,5 +920,19 @@ async def async_setup_entry(
                             config_entry=config_entry,
                         )
                     )
+
+    # TAF sensor: lives in a separate coordinator namespace (see __init__.py's
+    # hass.data[DOMAIN]["taf"][entry_id]) so a station without a current TAF
+    # (common for smaller airports) simply gets no TAF entity, without
+    # affecting its METAR sensors above.
+    taf_coordinators = hass.data[DOMAIN].get("taf", {}).get(config_entry.entry_id, {})
+    for station, taf_coordinator in taf_coordinators.items():
+        for description in TAF_SENSOR_TYPES:
+            entities.append(TafSensor(
+                coordinator=taf_coordinator,
+                station=station,
+                description=description,
+                config_entry=config_entry,
+            ))
 
     async_add_entities(entities)

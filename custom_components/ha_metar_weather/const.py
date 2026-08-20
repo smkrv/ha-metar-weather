@@ -101,6 +101,17 @@ AWC_API_BASE_URL: Final[str] = "https://aviationweather.gov/api/data/metar"
 AWC_API_TIMEOUT: Final[int] = 30  # seconds
 AVWX_TIMEOUT: Final[int] = 30  # seconds
 
+# TAF (Terminal Aerodrome Forecast) - same AWC Data API, separate endpoint.
+# https://aviationweather.gov/api/data/taf?ids=KORD&format=json
+# Only the raw TAF string is currently used (see taf_client.py / sensor.py's
+# raw_taf sensor).
+AWC_API_TAF_BASE_URL: Final[str] = "https://aviationweather.gov/api/data/taf"
+AWC_API_TAF_TIMEOUT: Final[int] = 30  # seconds
+# TAFs are scheduled every 6h (0000/0600/1200/1800Z) but amendments (AMD) can
+# be issued anytime conditions change enough to invalidate the forecast.
+# 1h keeps amendments reasonably timely without hammering the API 48x/day.
+DEFAULT_TAF_SCAN_INTERVAL: Final[timedelta] = timedelta(hours=1)
+
 # Validation
 ICAO_REGEX: Final[str] = r"^[A-Z0-9]{4}$"
 
@@ -113,6 +124,7 @@ ATTR_TREND: Final[str] = "trend"
 ATTR_REMARKS: Final[str] = "remarks"
 ATTR_WIND_GUST: Final[str] = "wind_gust"
 ATTR_WIND_VARIABLE_DIRECTION: Final[str] = "wind_variable_direction"
+ATTR_RAW_TAF: Final[str] = "raw_taf"
 
 # Unit mappings
 UNIT_MAPPINGS: Final[Dict[str, Dict[str, str]]] = {
