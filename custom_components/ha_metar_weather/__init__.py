@@ -29,6 +29,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.exceptions import ServiceValidationError
 
 from .api_client import MetarApiClient
@@ -45,8 +46,6 @@ from .const import (
     UNIT_AUTO,
     DEFAULT_WIND_SPEED_UNIT,
     DEFAULT_ALTITUDE_UNIT,
-    DEFAULT_SCAN_INTERVAL,
-    DEFAULT_TAF_SCAN_INTERVAL,
     FUTURE_OBSERVATION_TOLERANCE,
     RETRY_INTERVALS,
     ICAO_REGEX,
@@ -55,7 +54,16 @@ from .const import (
 # hass.data[DOMAIN] keys that are not a {station: coordinator} map for a
 # METAR config entry - both the update_station/clear_history services below
 # and async_unload_entry's "any entries left?" check must skip these.
-_NON_ENTRY_DATA_KEYS: Final[frozenset[str]] = frozenset({"storage", "taf"})
+_NON_ENTRY_DATA_KEYS: Final[frozenset[str]] = frozenset(
+    {"storage", "taf", "_scheduled_unsub"}
+)
+
+# Fixed wall-clock minutes to poll at, instead of an interval measured from
+# whenever the coordinator happened to start (which drifts with every HA
+# restart/reload). METAR: every 10 min, offset by 2. TAF: twice an hour,
+# same offset.
+METAR_FIXED_REFRESH_MINUTES: Final[list[int]] = [2, 12, 22, 32, 42, 52]
+TAF_FIXED_REFRESH_MINUTES: Final[list[int]] = [2, 32]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -509,7 +517,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass,
                 client,
                 station_upper,
-                DEFAULT_SCAN_INTERVAL,
+                None,  # no auto interval; see METAR_FIXED_REFRESH_MINUTES below
             )
 
             # This will fetch data once during setup
@@ -551,7 +559,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass,
                 taf_client,
                 station_upper,
-                DEFAULT_TAF_SCAN_INTERVAL,
+                None,  # no auto interval; see TAF_FIXED_REFRESH_MINUTES below
             )
             await taf_coordinator.async_config_entry_first_refresh()
 
@@ -569,6 +577,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             continue
 
     hass.data[DOMAIN].setdefault("taf", {})[entry.entry_id] = taf_coordinators
+
+    # Poll at fixed wall-clock minutes rather than a drifting interval
+    # (see METAR_FIXED_REFRESH_MINUTES / TAF_FIXED_REFRESH_MINUTES above).
+    # Two separate triggers since METAR and TAF run on different cadences.
+    async def _scheduled_metar_refresh(now) -> None:
+        for coord in coordinators.values():
+            hass.async_create_task(coord.async_request_refresh())
+
+    async def _scheduled_taf_refresh(now) -> None:
+        for taf_coord in taf_coordinators.values():
+            hass.async_create_task(taf_coord.async_request_refresh())
+
+    unsub_metar = async_track_time_change(
+        hass,
+        _scheduled_metar_refresh,
+        minute=METAR_FIXED_REFRESH_MINUTES,
+        second=0,
+    )
+    unsub_taf = async_track_time_change(
+        hass,
+        _scheduled_taf_refresh,
+        minute=TAF_FIXED_REFRESH_MINUTES,
+        second=0,
+    )
+    hass.data[DOMAIN].setdefault("_scheduled_unsub", {})[entry.entry_id] = (
+        unsub_metar,
+        unsub_taf,
+    )
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -591,6 +627,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
+        unsubs = hass.data[DOMAIN].get("_scheduled_unsub", {}).pop(entry.entry_id, None)
+        if unsubs:
+            for unsub in unsubs:
+                unsub()
         hass.data[DOMAIN].pop(entry.entry_id, None)
         hass.data[DOMAIN].get("taf", {}).pop(entry.entry_id, None)
 
@@ -618,6 +658,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Remove storage reference (storage object will be garbage collected)
             hass.data[DOMAIN].pop("storage", None)
             hass.data[DOMAIN].pop("taf", None)
+            hass.data[DOMAIN].pop("_scheduled_unsub", None)
 
             # Clear domain data entirely if empty
             if not hass.data[DOMAIN]:

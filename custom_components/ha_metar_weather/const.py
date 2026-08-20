@@ -65,7 +65,6 @@ VERSION: Final[str] = _get_version()
 
 # Default settings
 DEFAULT_NAME: Final[str] = "METAR Weather"
-DEFAULT_SCAN_INTERVAL: Final[timedelta] = timedelta(minutes=30)
 
 # Storage settings
 STORAGE_KEY: Final[str] = f"{DOMAIN}.history"
@@ -107,10 +106,6 @@ AVWX_TIMEOUT: Final[int] = 30  # seconds
 # raw_taf sensor).
 AWC_API_TAF_BASE_URL: Final[str] = "https://aviationweather.gov/api/data/taf"
 AWC_API_TAF_TIMEOUT: Final[int] = 30  # seconds
-# TAFs are scheduled every 6h (0000/0600/1200/1800Z) but amendments (AMD) can
-# be issued anytime conditions change enough to invalidate the forecast.
-# 1h keeps amendments reasonably timely without hammering the API 48x/day.
-DEFAULT_TAF_SCAN_INTERVAL: Final[timedelta] = timedelta(hours=1)
 
 # Validation
 ICAO_REGEX: Final[str] = r"^[A-Z0-9]{4}$"
