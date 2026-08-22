@@ -22,6 +22,8 @@ from custom_components.ha_metar_weather.const import DOMAIN
 
 FIXTURES = Path(__file__).parent / "fixtures"
 AWC_URL = "https://aviationweather.gov/api/data/metar"
+# Setup also fires a TAF fetch per station; 204 = "no TAF" keeps it inert.
+TAF_URL = "https://aviationweather.gov/api/data/taf"
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +38,7 @@ async def _setup_lflc(
     aioclient_mock.get(
         AWC_URL, json=json.loads((FIXTURES / "awc_LFLC.json").read_text())
     )
+    aioclient_mock.get(TAF_URL, status=204)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,

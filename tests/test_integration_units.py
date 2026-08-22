@@ -24,6 +24,8 @@ from custom_components.ha_metar_weather.const import DOMAIN
 
 FIXTURES = Path(__file__).parent / "fixtures"
 AWC_URL = "https://aviationweather.gov/api/data/metar"
+# Setup also fires a TAF fetch per station; 204 = "no TAF" keeps it inert.
+TAF_URL = "https://aviationweather.gov/api/data/taf"
 
 # Exactly 1 knot of wind (issue #7 follow-up: was displayed as "1.03 kn").
 NICKDUINO_PAYLOAD = [
@@ -65,6 +67,7 @@ async def _setup_station(
     aioclient_mock.get(
         AWC_URL, json=payload if payload is not None else _load_payload(icao)
     )
+    aioclient_mock.get(TAF_URL, status=204)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,

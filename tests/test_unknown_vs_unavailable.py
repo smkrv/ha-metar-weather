@@ -22,9 +22,15 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 )
 
 from custom_components.ha_metar_weather.const import DOMAIN
-from custom_components.ha_metar_weather.sensor import SENSOR_TYPES, MetarSensor
+from custom_components.ha_metar_weather.sensor import (
+    SENSOR_TYPES,
+    TAF_SENSOR_TYPES,
+    MetarSensor,
+)
 
 AWC_URL = "https://aviationweather.gov/api/data/metar"
+# Setup also fires a TAF fetch per station; 204 = "no TAF" keeps it inert.
+TAF_URL = "https://aviationweather.gov/api/data/taf"
 
 
 @pytest.fixture(autouse=True)
@@ -57,6 +63,7 @@ async def _setup_station(
     **awc_fields,
 ) -> MockConfigEntry:
     aioclient_mock.get(AWC_URL, json=_payload(icao, raw_ob, **awc_fields))
+    aioclient_mock.get(TAF_URL, status=204)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
@@ -146,7 +153,9 @@ async def test_no_field_reads_unavailable_on_fresh_data(
     station_states = [
         s for s in hass.states.async_all() if s.entity_id.startswith("sensor.metar_lflc_")
     ]
-    assert len(station_states) == len(SENSOR_TYPES)
+    # METAR sensors plus the station's TAF sensor (unknown here: TAF is
+    # mocked as 204, a successful "no TAF" fetch - still not unavailable).
+    assert len(station_states) == len(SENSOR_TYPES) + len(TAF_SENSOR_TYPES)
     for state in station_states:
         assert state.state != STATE_UNAVAILABLE, state.entity_id
     await _teardown(hass, entry)

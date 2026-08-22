@@ -16,6 +16,8 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
 from custom_components.ha_metar_weather.const import DOMAIN
 
 AWC_URL = "https://aviationweather.gov/api/data/metar"
+# Setup also fires a TAF fetch per station; 204 = "no TAF" keeps it inert.
+TAF_URL = "https://aviationweather.gov/api/data/taf"
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +47,7 @@ async def test_runway_sensors_use_existing_mdi_icon(
             }
         ],
     )
+    aioclient_mock.get(TAF_URL, status=204)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,

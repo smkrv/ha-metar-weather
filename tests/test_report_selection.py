@@ -35,6 +35,8 @@ def _obs_epoch(minutes_from_now: float) -> int:
     )
 
 AWC_URL = "https://aviationweather.gov/api/data/metar"
+# Setup also fires a TAF fetch per station; 204 = "no TAF" keeps it inert.
+TAF_URL = "https://aviationweather.gov/api/data/taf"
 
 # 2026-08-04, the reports from the issue #16 KSDL timeline (epoch UTC).
 OBS_1500Z = 1785855600  # 04 15:00Z - the stale cycle the COR corrects
@@ -104,6 +106,7 @@ async def _setup_station(
     payload: list[dict],
 ) -> MockConfigEntry:
     aioclient_mock.get(AWC_URL, json=payload)
+    aioclient_mock.get(TAF_URL, status=204)
     entry = MockConfigEntry(
         domain=DOMAIN,
         version=2,
@@ -139,6 +142,7 @@ async def _refresh_with(
 ) -> None:
     aioclient_mock.clear_requests()
     aioclient_mock.get(AWC_URL, json=payload)
+    aioclient_mock.get(TAF_URL, status=204)
     coordinator = hass.data[DOMAIN][entry.entry_id]["KSDL"]
     await coordinator.async_refresh()
     await hass.async_block_till_done()
