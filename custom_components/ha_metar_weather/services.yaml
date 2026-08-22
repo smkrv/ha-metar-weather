@@ -1,6 +1,6 @@
 update_station:
   name: Update Station
-  description: Force update of METAR data for specific station
+  description: Force update of METAR and TAF data for specific station
   fields:
     station:
       name: Station

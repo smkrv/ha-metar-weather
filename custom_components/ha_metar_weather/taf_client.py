@@ -3,10 +3,10 @@ Aviation Weather Center (AWC) TAF API client.
 
 Minimal client for the AWC Data API's TAF endpoint (sibling of the METAR
 endpoint already used in awc_client.py). Currently only extracts the raw
-TAF string - the raw_taf sensor is the only TAF sensor this integration
-exposes right now, so nothing beyond that is parsed. AWC's JSON response
-does carry a fully-decoded per-period forecast (``fcsts``) if a "decoded"
-sensor is added later; see the "raw_taf" sensor description in sensor.py.
+TAF string plus issue time - the taf sensor is the only TAF sensor this
+integration exposes right now, so nothing beyond that is parsed. AWC's
+JSON response does carry a fully-decoded per-period forecast (``fcsts``)
+if a "decoded" sensor is added later; see TAF_SENSOR_TYPES in sensor.py.
 
 API Documentation: https://aviationweather.gov/data/api/
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -26,6 +27,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError
 
+from .awc_client import AWCApiClient
 from .const import AWC_API_TAF_BASE_URL, AWC_API_TAF_TIMEOUT
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +35,23 @@ _LOGGER = logging.getLogger(__name__)
 
 class AWCTafApiError(HomeAssistantError):
     """Exception for AWC TAF API errors."""
+
+
+def parse_issue_time(raw: Any) -> Optional[datetime]:
+    """Parse AWC's issueTime into an aware UTC datetime.
+
+    Delegates to AWCApiClient._parse_time_value, which absorbs every wire
+    format AWC has used for its time fields: ISO 8601 with a trailing Z,
+    legacy "YYYY-MM-DD HH:MM:SS", and epoch seconds (validTimeFrom/To are
+    already epoch ints in the same TAF response today, and obsTime flipped
+    from ISO to epoch in 2026-03, so issueTime flipping too is a matter of
+    time). Returns None when the value can't be parsed - callers treat
+    that as "no issue time", never as an error.
+    """
+    epoch = AWCApiClient._parse_time_value(raw)
+    if epoch is None:
+        return None
+    return datetime.fromtimestamp(epoch, tz=timezone.utc)
 
 
 class AWCTafApiClient:
@@ -55,9 +74,12 @@ class AWCTafApiClient:
 
         Returns:
             ``{"raw_taf": str, "station_name": str | None,
-            "issue_time": str | None}`` or None if the station has no
+            "issue_time": datetime | None}`` or None if the station has no
             current TAF (not every station with METAR reports also issues
-            TAFs) or on error.
+            TAFs - AWC answers 204 or an empty list for those).
+
+        Raises:
+            AWCTafApiError: on HTTP errors, timeouts, or invalid JSON.
         """
         params = {"ids": icao.upper(), "format": "json"}
 
@@ -70,7 +92,7 @@ class AWCTafApiClient:
                 timeout=aiohttp.ClientTimeout(total=AWC_API_TAF_TIMEOUT),
             ) as response:
                 if response.status == 204:
-                    _LOGGER.info("No TAF available for station %s", icao)
+                    _LOGGER.debug("No TAF available for station %s", icao)
                     return None
 
                 if response.status != 200:
@@ -94,7 +116,7 @@ class AWCTafApiClient:
             raise AWCTafApiError("Request timeout") from err
 
         if not data:
-            _LOGGER.info("AWC returned no TAF data for %s", icao)
+            _LOGGER.debug("AWC returned no TAF data for %s", icao)
             return None
         if isinstance(data, dict):
             data = [data]
@@ -107,15 +129,21 @@ class AWCTafApiClient:
 
         # AWC can return more than one bulletin for a station (e.g. the
         # scheduled TAF plus a just-issued AMD); "mostRecent" flags the
-        # current one. Fall back to the newest issueTime if that flag is
-        # absent from an older API response.
-        report = max(
-            candidates,
-            key=lambda item: (
-                int(item.get("mostRecent") or 0),
-                item.get("issueTime") or "",
-            ),
-        )
+        # current one. Ties fall back to the newest issueTime, compared as
+        # parsed datetimes so mixed wire formats (ISO vs epoch) rank
+        # correctly instead of raising on a str/int comparison.
+        def _bulletin_rank(item: Dict[str, Any]) -> tuple:
+            try:
+                most_recent = int(item.get("mostRecent") or 0)
+            except (TypeError, ValueError):
+                most_recent = 0
+            issued = parse_issue_time(item.get("issueTime"))
+            return (
+                most_recent,
+                issued or datetime.min.replace(tzinfo=timezone.utc),
+            )
+
+        report = max(candidates, key=_bulletin_rank)
 
         raw_taf = report.get("rawTAF")
         if not raw_taf:
@@ -127,62 +155,5 @@ class AWCTafApiClient:
         return {
             "raw_taf": raw_taf,
             "station_name": report.get("name"),
-            "issue_time": report.get("issueTime"),
+            "issue_time": parse_issue_time(report.get("issueTime")),
         }
-
-
-class TafApiClient:
-    """Thin wrapper giving the TAF coordinator the same shape as
-    api_client.MetarApiClient (fetch_data() + last_source), so
-    TafDataUpdateCoordinator in __init__.py mirrors
-    MetarDataUpdateCoordinator.
-
-    Currently AWC-only, no AVWX fallback (unlike the METAR path in
-    api_client.py) - a follow-up if AWC's TAF endpoint proves less
-    reliable than its METAR endpoint in practice.
-    """
-
-    def __init__(self, hass: HomeAssistant, icao: str) -> None:
-        self.hass = hass
-        self.icao = icao.upper()
-        self._awc_client = AWCTafApiClient(hass)
-        self._last_source: Optional[str] = None
-
-    @property
-    def last_source(self) -> Optional[str]:
-        """Return the last used data source name."""
-        return self._last_source
-
-    async def fetch_data(self) -> Optional[Dict[str, Any]]:
-        """Fetch the current TAF for this station.
-
-        Returns:
-            ``{"raw_taf": ..., "station_name": ..., "issue_time": ...}``
-            or None if the station has no current TAF / the fetch failed.
-        """
-        data = await self._awc_client.fetch_taf(self.icao)
-        if data:
-            self._last_source = "awc"
-        return data
-
-
-async def validate_station_has_taf(hass: HomeAssistant, icao: str) -> bool:
-    """Check whether a station currently publishes a TAF.
-
-    Not every station that reports METAR also issues a TAF (smaller
-    airports typically don't), so this is informational, not a hard
-    requirement for config_flow validation.
-
-    Args:
-        hass: Home Assistant instance
-        icao: ICAO airport code
-
-    Returns:
-        True if the station has a current TAF
-    """
-    client = AWCTafApiClient(hass)
-    try:
-        result = await client.fetch_taf(icao)
-        return result is not None
-    except AWCTafApiError:
-        return False

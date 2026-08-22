@@ -106,7 +106,7 @@
   "services": {
     "update_station": {
       "name": "Station aktualisieren",
-      "description": "Erzwungene Aktualisierung der METAR-Daten für die angegebene Station.",
+      "description": "Erzwungene Aktualisierung der METAR- und TAF-Daten für die angegebene Station.",
       "fields": {
         "station": {
           "name": "Station",

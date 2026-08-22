@@ -12,7 +12,7 @@ import asyncio
 import re
 from asyncio import timeout as async_timeout
 from datetime import timedelta, timezone
-from typing import Final
+from typing import Any, Final
 
 import voluptuous as vol
 
@@ -32,7 +32,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.exceptions import ServiceValidationError
 
 from .api_client import MetarApiClient
-from .taf_client import TafApiClient
+from .taf_client import AWCTafApiClient, AWCTafApiError
 from .storage import MetarHistoryStorage
 from .const import (
     DOMAIN,
@@ -115,6 +115,13 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 coordinator = entry_data.get(station)
                 if coordinator:
                     await coordinator.async_request_refresh()
+                    # Refresh the station's TAF as well - "update this
+                    # station" means all of its data, not just METAR.
+                    taf_coordinator = (
+                        hass.data[DOMAIN].get("taf", {}).get(entry_id, {}).get(station)
+                    )
+                    if taf_coordinator:
+                        await taf_coordinator.async_request_refresh()
                     _LOGGER.info("Forced update for station %s completed", station)
                     return
 
@@ -364,46 +371,46 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         raise UpdateFailed(f"Error fetching data after {attempts_made} attempt(s): {last_error}") from last_error
 
 
-class TafDataUpdateCoordinator(DataUpdateCoordinator):
+class TafDataUpdateCoordinator(DataUpdateCoordinator["dict[str, Any] | None"]):
     """Class to manage fetching TAF data.
 
-    Deliberately kept simpler than MetarDataUpdateCoordinator: with only
-    the raw TAF string exposed (no periods/history/trend), the coordinator
-    just needs retry-with-backoff and a lightweight staleness guard on
+    Deliberately simpler than MetarDataUpdateCoordinator: no
+    retry-with-backoff (the METAR retry loop sleeps up to 17s, which is
+    justified for the primary data but not for a forecast that refreshes
+    hourly and self-heals on the next cycle), just a staleness guard on
     issue_time so a lagging fetch can't overwrite a newer TAF with an
-    older AMD/COR.
+    older one.
+
+    data is None while the station has no current TAF (a successful fetch:
+    smaller airports often don't issue TAFs). Sensor availability must
+    therefore be coordinator-level only - see TafSensor.available.
     """
 
     def __init__(
         self,
         hass: HomeAssistant,
-        client: TafApiClient,
+        client: AWCTafApiClient,
         station: str,
-        update_interval: timedelta,
     ):
         """Initialize the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{station}_taf",
-            update_interval=update_interval,
+            update_interval=DEFAULT_TAF_SCAN_INTERVAL,
         )
         self.client = client
         self.station = station
-        self._retry_count = 0
-        self._consecutive_failures = 0
 
     def _reject_stale_taf(self, fetched: dict) -> dict:
-        """Keep the held TAF when a fetch yields an older/equal issue_time.
+        """Keep the held TAF when a fetch yields an older issue_time.
 
         Mirrors MetarDataUpdateCoordinator._reject_stale_observation, but
         compares issue_time: a TAF is valid until superseded by a newer
         issuance (scheduled or AMD), so an older issue_time is never the
-        current forecast. issue_time is AWC's raw string here (not yet
-        normalized), so this is a plain string comparison of ISO-ish
-        timestamps - good enough since AWC issues them in that form and a
-        malformed value simply skips the guard (fetched wins) rather than
-        crashing.
+        current forecast. issue_time is an aware datetime parsed by
+        taf_client.parse_issue_time (None when unparseable, which simply
+        skips the guard - fetched wins - rather than crashing).
         """
         held = self.data
         if not held:
@@ -424,50 +431,21 @@ class TafDataUpdateCoordinator(DataUpdateCoordinator):
         return fetched
 
     async def _async_update_data(self):
-        """Fetch TAF data from API with retry logic."""
-        last_error = None
-        attempts_made = 0
+        """Fetch the current TAF; a single attempt per refresh."""
+        try:
+            fetched = await self.client.fetch_taf(self.station)
+        except AWCTafApiError as err:
+            raise UpdateFailed(f"Error fetching TAF: {err}") from err
 
-        for attempt, delay in enumerate(RETRY_INTERVALS):
-            attempts_made = attempt + 1
-            try:
-                data = await self.client.fetch_data()
-                if data:
-                    data = self._reject_stale_taf(data)
-                    self._consecutive_failures = 0
-                    self._retry_count = 0
-                    _LOGGER.debug("Updated TAF for %s: %s", self.station, data)
-                    return data
+        if fetched is None:
+            # Station simply has no current TAF - a valid, successful
+            # result. The sensor shows "unknown", not "unavailable".
+            _LOGGER.debug("No current TAF for %s", self.station)
+            return None
 
-                # Station simply has no current TAF (common for smaller
-                # airports) - not an error, retrying won't help.
-                _LOGGER.debug("No TAF available for %s", self.station)
-                return None
-
-            except Exception as err:
-                last_error = err
-                self._retry_count = attempt + 1
-                _LOGGER.warning(
-                    "TAF attempt %d/%d failed for %s: %s. Retrying in %ds...",
-                    attempt + 1,
-                    len(RETRY_INTERVALS),
-                    self.station,
-                    err,
-                    delay,
-                )
-                if attempt < len(RETRY_INTERVALS) - 1:
-                    await asyncio.sleep(delay)
-
-        self._consecutive_failures += 1
-        _LOGGER.error(
-            "TAF fetch failed for %s after %d attempt(s). Error: %s",
-            self.station,
-            attempts_made,
-            last_error,
-        )
-        raise UpdateFailed(
-            f"Error fetching TAF after {attempts_made} attempt(s): {last_error}"
-        ) from last_error
+        fetched = self._reject_stale_taf(fetched)
+        _LOGGER.debug("Updated TAF for %s: %s", self.station, fetched)
+        return fetched
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -539,34 +517,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # rather than mixed into `coordinators` above, so the existing
     # update_station/clear_history services and the METAR sensor setup keep
     # iterating a pure {station: MetarDataUpdateCoordinator} map unchanged.
-    # A station without a current TAF (common for smaller airports) is
-    # skipped rather than failing the whole config entry - it simply gets
-    # no TAF sensor.
+    # Every METAR station gets a TAF coordinator unconditionally: a station
+    # without a current TAF (common for smaller airports) keeps its entity
+    # at "unknown" and picks the forecast up whenever one appears. The
+    # first fetch runs as an entry-scoped background task so a slow or
+    # failing TAF endpoint can't delay METAR setup; the coordinator's own
+    # hourly schedule takes over once the sensor subscribes.
+    taf_client = AWCTafApiClient(hass)
     taf_coordinators: dict[str, TafDataUpdateCoordinator] = {}
-    for station in stations:
-        station_upper = station.upper()
-        try:
-            taf_client = TafApiClient(hass, station_upper)
-            taf_coordinator = TafDataUpdateCoordinator(
-                hass,
-                taf_client,
-                station_upper,
-                DEFAULT_TAF_SCAN_INTERVAL,
-            )
-            await taf_coordinator.async_config_entry_first_refresh()
-
-            if taf_coordinator.data:
-                taf_coordinators[station_upper] = taf_coordinator
-            else:
-                _LOGGER.info(
-                    "No TAF available for station %s; skipping TAF sensor",
-                    station_upper,
-                )
-        except Exception as err:
-            _LOGGER.warning(
-                "Error setting up TAF for station %s: %s", station_upper, err
-            )
-            continue
+    for station_upper in coordinators:
+        taf_coordinator = TafDataUpdateCoordinator(hass, taf_client, station_upper)
+        taf_coordinators[station_upper] = taf_coordinator
+        entry.async_create_background_task(
+            hass,
+            taf_coordinator.async_refresh(),
+            name=f"{DOMAIN}_{station_upper}_taf_first_refresh",
+        )
 
     hass.data[DOMAIN].setdefault("taf", {})[entry.entry_id] = taf_coordinators
 
