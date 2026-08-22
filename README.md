@@ -53,6 +53,7 @@ Every configured station provides a complete set of sensors:
 - **Runway Conditions** when reported by the station
 - **CAVOK Status** and trend information
 - **Raw METAR String** for reference
+- **TAF** (Terminal Aerodrome Forecast) - the sensor state is the forecast's issue time, the full raw TAF text is in the `raw_taf` attribute; stations that don't publish TAFs show "unknown"
 
 > **ℹ️ Note on Runway State Information**
 > 
