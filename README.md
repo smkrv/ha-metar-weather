@@ -120,7 +120,7 @@ Full interface translation in:
 
 ### update_station
 
-Force an immediate data update for a specific station:
+Force an immediate update of METAR and TAF data for a specific station:
 
 ```yaml
 service: ha_metar_weather.update_station
@@ -144,7 +144,7 @@ data:
 
 The two states mean different things:
 
-- **Unknown**: the station reports fine, but this field is absent from the current METAR - no gusts, no wind direction while the wind is calm or variable, no cloud height under CAVOK. This is normal.
+- **Unknown**: the station reports fine, but this field is absent from the current METAR - no gusts, no wind direction while the wind is calm or variable, no cloud height under CAVOK. The TAF sensor reads "unknown" for stations that don't issue TAFs at all, which is common for smaller airports. This is normal.
 - **Unavailable**: fetching the report itself failed. Verify the ICAO code is correct (exactly 4 uppercase letters), check the station is actively reporting at [Aviation Weather Center](https://aviationweather.gov/metar), and keep in mind some smaller airports report intermittently.
 
 ### Enable Debug Logging
@@ -166,7 +166,7 @@ This integration fetches METAR data from two official sources:
 | [**AWC REST API**](https://aviationweather.gov/data/api/) | Aviation Weather Center API |
 | [**NOAA FTP**](https://tgftp.nws.noaa.gov/) | Traditional FTP source via AVWX |
 
-Both sources provide official NOAA/NWS data. The integration automatically falls back to the secondary source if the primary is unavailable. Users must comply with [NOAA data usage terms](https://www.weather.gov/disclaimer).
+Both sources provide official NOAA/NWS data. The integration automatically falls back to the secondary source if the primary is unavailable. TAF data comes from the AWC API only. Users must comply with [NOAA data usage terms](https://www.weather.gov/disclaimer).
 
 ## Legal Disclaimer
 
