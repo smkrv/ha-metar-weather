@@ -89,6 +89,47 @@ MAX_HISTORY_DISPLAY: Final[int] = 24  # Number of historical records to show in 
 # Error handling
 RETRY_INTERVALS: Final[tuple[int, ...]] = (2, 5, 10, 30)
 
+# Adaptive-polling constants for MetarDataUpdateCoordinator: the coordinator
+# schedules its next fetch from each station's own observed reporting
+# cadence instead of a flat DEFAULT_SCAN_INTERVAL for every station
+# worldwide (30-min European vs. 60-min US stations, etc.).
+#
+# Jitter is load-bearing here, not cosmetic. Today's spread between
+# installations comes from the restart clock: DataUpdateCoordinator counts
+# its interval from whenever the coordinator was created, so every install
+# sits at its own offset inside the cycle. Anchoring on observation_time
+# removes exactly that - every install watching, say, a :20/:50 station now
+# converges on the same instant, so the jitter below is the *only* spread
+# left. It has to be a meaningful fraction of the cadence, not a few
+# seconds.
+ADAPTIVE_INTERVAL_MARGIN: Final[timedelta] = timedelta(minutes=5)
+ADAPTIVE_MARGIN_MIN: Final[timedelta] = timedelta(minutes=1)
+ADAPTIVE_MARGIN_MAX: Final[timedelta] = timedelta(minutes=15)
+ADAPTIVE_JITTER_SECONDS: Final[tuple[int, int]] = (0, 480)  # 0-8 minutes
+ADAPTIVE_MIN_INTERVAL: Final[timedelta] = timedelta(minutes=5)
+ADAPTIVE_MAX_INTERVAL: Final[timedelta] = DEFAULT_SCAN_INTERVAL * 2
+ADAPTIVE_LEARNED_INTERVAL_SAMPLES: Final[int] = 5
+
+# Sanity bounds for a single observation-to-observation delta before it is
+# trusted as a cadence sample. Below the floor it is almost certainly a
+# SPECI or a same-cycle COR that slipped past the metarType filter; above
+# the ceiling it is a missed cycle, not the station's real rhythm.
+ADAPTIVE_DELTA_MIN: Final[timedelta] = timedelta(minutes=15)
+ADAPTIVE_DELTA_MAX: Final[timedelta] = timedelta(minutes=90)
+
+# Short retries when the expected new observation hasn't appeared yet
+# (observation_time unchanged from the previous fetch) - e.g. the API
+# hasn't ingested the latest cycle yet. Kept short and few so a
+# temporarily late report doesn't turn into a tight polling loop; once
+# exhausted, the coordinator anchors to the station's next native release
+# slot, capped at DEFAULT_SCAN_INTERVAL so a station whose publication lag
+# runs long still gets checked within one normal cycle instead of an
+# entire missed one.
+OBS_STALE_RETRY_INTERVALS: Final[tuple[timedelta, ...]] = (
+    timedelta(minutes=3),
+    timedelta(minutes=3),
+)
+
 # A report dated further ahead of the local clock than this is treated as
 # mis-keyed (a wrong DDHHMM group decoded into the future) and is neither
 # selected nor kept as the held observation. Minutes, not seconds: AWC

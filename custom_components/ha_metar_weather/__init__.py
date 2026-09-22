@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import random
 import re
 from asyncio import timeout as async_timeout
-from datetime import timedelta, timezone
+from collections import deque
+from datetime import datetime, timedelta, timezone
 from typing import Any, Final
 
 import voluptuous as vol
@@ -49,6 +51,16 @@ from .const import (
     DEFAULT_TAF_SCAN_INTERVAL,
     FUTURE_OBSERVATION_TOLERANCE,
     RETRY_INTERVALS,
+    ADAPTIVE_INTERVAL_MARGIN,
+    ADAPTIVE_MARGIN_MIN,
+    ADAPTIVE_MARGIN_MAX,
+    ADAPTIVE_JITTER_SECONDS,
+    ADAPTIVE_MIN_INTERVAL,
+    ADAPTIVE_MAX_INTERVAL,
+    ADAPTIVE_LEARNED_INTERVAL_SAMPLES,
+    ADAPTIVE_DELTA_MIN,
+    ADAPTIVE_DELTA_MAX,
+    OBS_STALE_RETRY_INTERVALS,
     ICAO_REGEX,
 )
 
@@ -229,11 +241,13 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         client: MetarApiClient,
         station: str,
         update_interval: timedelta,
+        config_entry: ConfigEntry | None = None,
     ):
         """Initialize the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN}_{station}",
             update_interval=update_interval,
         )
@@ -242,6 +256,22 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         self._retry_count = 0
         self._consecutive_failures = 0
         self._accepted_source: str | None = None
+        self._interval_samples: deque[timedelta] = deque(
+            maxlen=ADAPTIVE_LEARNED_INTERVAL_SAMPLES
+        )
+        self._margin_samples: deque[timedelta] = deque(
+            maxlen=ADAPTIVE_LEARNED_INTERVAL_SAMPLES
+        )
+        # Last observation_time seen from any report (METAR or SPECI) -
+        # drives the "is this actually new data" / retry-backoff check and
+        # the anchor point for the next scheduled fetch.
+        self._last_observation_time: datetime | None = None
+        # Last observation_time specifically from a METAR (not a SPECI) -
+        # the only thing cadence learning (_interval_samples) is allowed to
+        # diff against, so an off-grid SPECI never drags the learned median
+        # off the station's real routine rhythm.
+        self._last_metar_time: datetime | None = None
+        self._stale_retry_count = 0
 
     @property
     def accepted_source(self) -> str | None:
@@ -299,6 +329,207 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             return held
         return fetched
 
+    def _learned_interval_raw(self) -> timedelta:
+        """Station's typical native reporting cadence, no margin.
+
+        Median of the observed METAR-to-METAR deltas (deque of the last
+        ADAPTIVE_LEARNED_INTERVAL_SAMPLES), smoothing over a single late/
+        early outlier. Falls back to DEFAULT_SCAN_INTERVAL until enough
+        history exists to trust a median.
+        """
+        if len(self._interval_samples) < 2:
+            return DEFAULT_SCAN_INTERVAL
+        samples = sorted(self._interval_samples)
+        return samples[len(samples) // 2]
+
+    def _learned_margin(self) -> timedelta:
+        """The station's real publication lag, learned from receiptTime.
+
+        p90 of the observed (receiptTime - obsTime) samples, clamped to
+        [ADAPTIVE_MARGIN_MIN, ADAPTIVE_MARGIN_MAX]. Falls back to the fixed
+        ADAPTIVE_INTERVAL_MARGIN until at least one sample exists - which,
+        on the AVWX path (no receiptTime there), is always.
+        """
+        if not self._margin_samples:
+            return ADAPTIVE_INTERVAL_MARGIN
+        samples = sorted(self._margin_samples)
+        index = max(0, min(len(samples) - 1, int(len(samples) * 0.9)))
+        p90 = samples[index]
+        return max(ADAPTIVE_MARGIN_MIN, min(p90, ADAPTIVE_MARGIN_MAX))
+
+    def _learned_interval(self) -> timedelta:
+        """Scheduling interval: native cadence plus the learned publish-delay margin."""
+        return self._learned_interval_raw() + self._learned_margin()
+
+    def _record_margin_sample(self, data: dict, obs_time: datetime) -> None:
+        """Track a station's real publication lag (receiptTime - obsTime).
+
+        No-op whenever receipt_time is absent (always true on the AVWX
+        path), which is exactly what leaves _learned_margin() on the fixed
+        fallback for that path.
+        """
+        receipt_time = dt_util.parse_datetime(data.get("receipt_time") or "")
+        if receipt_time is None:
+            return
+        if receipt_time.tzinfo is None:
+            receipt_time = receipt_time.replace(tzinfo=timezone.utc)
+        lag = receipt_time - obs_time
+        if timedelta(0) <= lag <= ADAPTIVE_MARGIN_MAX * 2:
+            # Sanity bound: a negative or wildly large lag is a clock skew
+            # or parsing anomaly, not a real publication delay.
+            self._margin_samples.append(lag)
+
+    def _compute_next_update_interval(self, data: dict) -> timedelta:
+        """Schedule the next fetch from this station's own cadence.
+
+        Replaces the flat DEFAULT_SCAN_INTERVAL with a per-station learned
+        rhythm: after a new observation, wait until shortly after the next
+        one is expected (obs_time + learned interval + jitter). If the
+        expected observation hasn't shown up yet (observation_time
+        unchanged from the previous fetch), retry after a short, bounded
+        backoff (OBS_STALE_RETRY_INTERVALS). Once those retries are
+        exhausted, anchor to the station's *next* native release slot
+        instead of drifting from "now" - capped at DEFAULT_SCAN_INTERVAL so
+        a station whose publication lag runs long still gets checked within
+        one normal cycle rather than a whole missed one.
+
+        Cadence and margin are learned only from METAR-to-METAR deltas and
+        AWC's receiptTime: AWC serves SPECIs in the same feed, and an
+        off-grid SPECI (or a same-cycle COR, which yields a zero delta)
+        would otherwise drag the learned median off the station's real
+        routine rhythm.
+        """
+        obs_time = dt_util.parse_datetime(data.get("observation_time") or "")
+        if obs_time is None:
+            # Can't reason about cadence without an observation time -
+            # keep the fixed default rather than guessing.
+            self._stale_retry_count = 0
+            return DEFAULT_SCAN_INTERVAL
+
+        if obs_time.tzinfo is None:
+            obs_time = obs_time.replace(tzinfo=timezone.utc)
+
+        if (
+            self._last_observation_time is not None
+            and obs_time == self._last_observation_time
+        ):
+            # Same report as last time - the next one hasn't been
+            # published yet.
+            if self._stale_retry_count < len(OBS_STALE_RETRY_INTERVALS):
+                delay = OBS_STALE_RETRY_INTERVALS[self._stale_retry_count]
+                self._stale_retry_count += 1
+                _LOGGER.debug(
+                    "%s: observation unchanged, retrying in %s (attempt %d/%d)",
+                    self.station,
+                    delay,
+                    self._stale_retry_count,
+                    len(OBS_STALE_RETRY_INTERVALS),
+                )
+                return delay
+            # Short retries exhausted - the expected report is unusually
+            # late. Anchor to the station's *next* native release slot
+            # instead of drifting from "now", but cap the wait at
+            # DEFAULT_SCAN_INTERVAL: the anchor alone would leave a station
+            # whose publication lag exceeds margin + one retry cycle
+            # without a check for a full learned cycle, worse than today's
+            # flat-interval behavior.
+            self._stale_retry_count = 0
+            raw_interval = self._learned_interval_raw()
+            fallback_target = obs_time + raw_interval + self._learned_interval()
+            anchor_delay = fallback_target - dt_util.utcnow()
+            delay = min(anchor_delay, DEFAULT_SCAN_INTERVAL)
+            _LOGGER.debug(
+                "%s: observation still unchanged after %d retries, "
+                "anchoring to next native release slot at %s (capped at %s)",
+                self.station,
+                len(OBS_STALE_RETRY_INTERVALS),
+                fallback_target.isoformat(),
+                DEFAULT_SCAN_INTERVAL,
+            )
+            return max(ADAPTIVE_MIN_INTERVAL, min(delay, ADAPTIVE_MAX_INTERVAL))
+
+        # New observation - schedule the next fetch relative to it
+        # regardless of report type. Only a METAR feeds the learned
+        # cadence/margin themselves; a SPECI still updates the sensors and
+        # still anchors the *next* check, it just isn't trusted as a
+        # sample of the station's routine rhythm.
+        report_type = (data.get("metar_type") or "").upper()
+        is_metar = report_type in ("METAR", "")  # AVWX has no metarType field
+        if is_metar:
+            if self._last_metar_time is not None:
+                delta = obs_time - self._last_metar_time
+                if ADAPTIVE_DELTA_MIN <= delta <= ADAPTIVE_DELTA_MAX:
+                    self._interval_samples.append(delta)
+            self._last_metar_time = obs_time
+            self._record_margin_sample(data, obs_time)
+
+        self._last_observation_time = obs_time
+        self._stale_retry_count = 0
+
+        interval = self._learned_interval()
+        jitter = timedelta(seconds=random.randint(*ADAPTIVE_JITTER_SECONDS))
+        target = obs_time + interval + jitter
+        delay = target - dt_util.utcnow()
+        return max(ADAPTIVE_MIN_INTERVAL, min(delay, ADAPTIVE_MAX_INTERVAL))
+
+    async def async_seed_from_storage(self, storage) -> None:
+        """Recover the learned cadence/margin from stored history at setup.
+
+        MetarHistoryStorage keeps up to 24h of records carrying
+        observation_time (and, from this version on, metar_type/
+        receipt_time), so the adaptive schedule doesn't fall back to the
+        flat default for the first two cycles after every restart. Records
+        from before this field existed have no metar_type and are skipped
+        outright, never guessed at. Best-effort: any failure here just
+        means seeding didn't happen, not a setup failure.
+        """
+        if storage is None:
+            return
+        try:
+            records = await storage.async_get_all_station_records(self.station)
+        except Exception as err:
+            _LOGGER.debug(
+                "Could not seed cadence for %s from storage: %s", self.station, err
+            )
+            return
+
+        metar_times: list[datetime] = []
+        for record in records:
+            if not isinstance(record, dict) or record.get("metar_type") != "METAR":
+                continue
+            obs = dt_util.parse_datetime(record.get("observation_time") or "")
+            if obs is None:
+                continue
+            if obs.tzinfo is None:
+                obs = obs.replace(tzinfo=timezone.utc)
+            metar_times.append(obs)
+
+            receipt = dt_util.parse_datetime(record.get("receipt_time") or "")
+            if receipt is not None:
+                if receipt.tzinfo is None:
+                    receipt = receipt.replace(tzinfo=timezone.utc)
+                lag = receipt - obs
+                if timedelta(0) <= lag <= ADAPTIVE_MARGIN_MAX * 2:
+                    self._margin_samples.append(lag)
+
+        metar_times.sort()
+        for earlier, later in zip(metar_times, metar_times[1:]):
+            delta = later - earlier
+            if ADAPTIVE_DELTA_MIN <= delta <= ADAPTIVE_DELTA_MAX:
+                self._interval_samples.append(delta)
+
+        if metar_times:
+            self._last_metar_time = metar_times[-1]
+            self._last_observation_time = metar_times[-1]
+            _LOGGER.debug(
+                "%s: seeded cadence from storage - %d METAR samples, "
+                "%d interval samples, %d margin samples",
+                self.station,
+                len(metar_times),
+                len(self._interval_samples),
+                len(self._margin_samples),
+            )
+
     async def _async_update_data(self):
         """Fetch data from API with retry logic."""
         last_error = None
@@ -335,6 +566,7 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                             self.station
                         )
 
+                    self.update_interval = self._compute_next_update_interval(data)
                     _LOGGER.debug("Updated data for %s: %s", self.station, data)
                     return data
 
@@ -361,6 +593,11 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
 
         # All retries exhausted or early break
         self._consecutive_failures += 1
+        # Core reschedules from update_interval after a failed refresh too
+        # (_schedule_refresh runs regardless of outcome), so a long learned
+        # interval left in place here would postpone recovery by as much -
+        # an hour, for an hourly station - instead of the usual 30 minutes.
+        self.update_interval = DEFAULT_SCAN_INTERVAL
         _LOGGER.error(
             "Failed for %s after %d attempt(s). Consecutive failures: %d. Error: %s",
             self.station,
@@ -488,6 +725,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 client,
                 station_upper,
                 DEFAULT_SCAN_INTERVAL,
+                config_entry=entry,
+            )
+
+            # Recover the learned cadence/margin from stored history before
+            # the first fetch, so adaptive polling doesn't start cold on
+            # every restart.
+            await coordinator.async_seed_from_storage(
+                hass.data[DOMAIN].get("storage")
             )
 
             # This will fetch data once during setup

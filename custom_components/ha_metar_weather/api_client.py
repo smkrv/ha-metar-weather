@@ -139,6 +139,16 @@ def merge_awc_numerics(
     if awc_meta.get("observation_time") is not None:
         merged["observation_time"] = awc_meta["observation_time"]
 
+    # Adaptive-polling metadata: report type (METAR/SPECI) and the
+    # station's real publication lag. Both are AWC-only (absent on the
+    # AVWX fallback path) - the coordinator treats their absence as "no
+    # signal" rather than an error.
+    if awc_meta.get("metar_type") is not None:
+        merged["metar_type"] = awc_meta["metar_type"]
+
+    if awc_meta.get("receipt_time") is not None:
+        merged["receipt_time"] = awc_meta["receipt_time"]
+
     return merged
 
 

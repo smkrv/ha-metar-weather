@@ -370,6 +370,44 @@ class AWCApiClient:
 
             raw_metar = data.get("rawOb", "")
 
+            # Report type ("METAR" vs "SPECI"): adaptive-polling cadence
+            # learning needs to know this, so an off-grid SPECI in the same
+            # feed doesn't drag the learned median off the station's real
+            # routine rhythm.
+            metar_type = data.get("metarType")
+            metar_type = metar_type.upper() if isinstance(metar_type, str) else None
+
+            # receiptTime: when AWC actually ingested this report, distinct
+            # from obsTime (when the station observed it). The gap between
+            # the two is the station's real publication lag, which
+            # adaptive-polling learns from instead of assuming a fixed
+            # margin. Parsed the same way as obsTime above; absent on the
+            # AVWX fallback path, which is why callers must treat this as
+            # optional.
+            receipt_time = None
+            receipt_time_raw = data.get("receiptTime")
+            if receipt_time_raw is not None:
+                try:
+                    if isinstance(receipt_time_raw, bool):
+                        pass
+                    elif isinstance(receipt_time_raw, (int, float)):
+                        if receipt_time_raw >= 0:
+                            receipt_time = datetime.fromtimestamp(
+                                receipt_time_raw, tz=timezone.utc
+                            )
+                    elif isinstance(receipt_time_raw, str):
+                        rt = receipt_time_raw
+                        if rt.endswith("Z"):
+                            rt = rt[:-1] + "+00:00"
+                        receipt_time = datetime.fromisoformat(rt)
+                except (ValueError, OSError, OverflowError) as err:
+                    _LOGGER.debug(
+                        "Failed to parse receiptTime '%s' for %s: %s",
+                        receipt_time_raw,
+                        data.get("icaoId", "unknown"),
+                        err,
+                    )
+
             # CAVOK implies visibility of at least 10 km. The textual CAVOK flag
             # itself is produced by the shared parser; here we only backfill the
             # numeric so AWC's authoritative visibility stays correct.
@@ -386,6 +424,10 @@ class AWCApiClient:
                     observation_time.isoformat()
                     if observation_time is not None
                     else None
+                ),
+                "metar_type": metar_type,
+                "receipt_time": (
+                    receipt_time.isoformat() if receipt_time is not None else None
                 ),
                 "temperature": temp,
                 "dew_point": dewp,
