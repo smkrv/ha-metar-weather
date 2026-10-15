@@ -233,8 +233,12 @@ async def test_retry_exhaustion_anchors_and_caps_at_default_interval(
     with freeze_time(t0):
         await coordinator._async_update_data()  # baseline (new observation)
 
+    # The retry chain only starts once the expected slot has passed:
+    # obs + learned interval (default raw 30 min + fixed 5 min margin).
+    due = t0 + DEFAULT_SCAN_INTERVAL + timedelta(minutes=5)
+
     for expected_delay in OBS_STALE_RETRY_INTERVALS:
-        with freeze_time(t0):
+        with freeze_time(due):
             await coordinator._async_update_data()  # same obs_time -> retry
         assert coordinator.update_interval == expected_delay
 
@@ -242,7 +246,7 @@ async def test_retry_exhaustion_anchors_and_caps_at_default_interval(
     # _learned_interval_raw() is DEFAULT_SCAN_INTERVAL and the anchor
     # (obs + raw + (raw+margin)) is far beyond DEFAULT_SCAN_INTERVAL out -
     # the cap must win.
-    with freeze_time(t0):
+    with freeze_time(due):
         await coordinator._async_update_data()
 
     assert coordinator.update_interval <= DEFAULT_SCAN_INTERVAL
@@ -547,3 +551,140 @@ async def test_jitter_stays_within_widened_bounds(hass_with_domain):
     # 150s-wide window at least some of the time; a flaky-but-vanishingly-
     # unlikely false negative is preferable to hardcoding the RNG.
     assert spread > timedelta(minutes=2, seconds=30)
+
+
+# --- review follow-ups: SPECI anchor, silent stations, restart, AVWX, seed ---
+
+
+def _seeded_coordinator(hass, last_metar: datetime, raw_min: int = 60):
+    """Coordinator with a trusted cadence and a known last routine METAR."""
+    coordinator = MetarDataUpdateCoordinator(
+        hass, _StubMetarClient([]), "TEST", DEFAULT_SCAN_INTERVAL
+    )
+    for _ in range(5):
+        coordinator._interval_samples.append(timedelta(minutes=raw_min))
+        coordinator._margin_samples.append(timedelta(minutes=3))
+    coordinator._last_metar_time = last_metar
+    coordinator._last_observation_time = last_metar
+    return coordinator
+
+
+async def test_speci_does_not_shift_routine_anchor(hass_with_domain):
+    """A SPECI mid-hour must not push the next routine fetch off the
+    station's release grid: the anchor stays the last routine METAR."""
+    t_metar = datetime(2026, 8, 23, 10, 50, tzinfo=timezone.utc)
+    t_speci = datetime(2026, 8, 23, 11, 35, tzinfo=timezone.utc)
+    coordinator = _seeded_coordinator(hass_with_domain, t_metar)
+    coordinator.client = _StubMetarClient([_report(t_speci, metar_type="SPECI")])
+
+    with freeze_time(t_speci + timedelta(minutes=4)):
+        await coordinator._async_update_data()
+
+    # Next routine: 11:50 + 3 min margin -> 11:53 (+ up to 8 min jitter),
+    # i.e. 14..22 min after "now" (11:39) - not 11:35 + 63 min.
+    assert timedelta(minutes=14) <= coordinator.update_interval <= timedelta(minutes=22)
+    assert coordinator._last_metar_time == t_metar  # SPECI is no routine sample
+
+
+async def test_untyped_report_never_learns_cadence(hass_with_domain):
+    """AVWX reports carry no metar_type: they can't be told apart from a
+    SPECI, so they must not feed the cadence samples."""
+    t0 = datetime(2026, 8, 23, 10, 0, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=17)  # could be an off-grid SPECI
+    t2 = t0 + timedelta(minutes=60)
+    coordinator = MetarDataUpdateCoordinator(
+        hass_with_domain,
+        _StubMetarClient(
+            [
+                {**_report(t0), "metar_type": None},
+                {**_report(t1), "metar_type": None},
+                {**_report(t2), "metar_type": None},
+            ]
+        ),
+        "TEST",
+        DEFAULT_SCAN_INTERVAL,
+    )
+    for t in (t0, t1, t2):
+        with freeze_time(t):
+            await coordinator._async_update_data()
+
+    assert len(coordinator._interval_samples) == 0
+    assert coordinator._learned_interval_raw() == DEFAULT_SCAN_INTERVAL
+
+
+async def test_silent_station_does_not_loop_on_short_retries(hass_with_domain):
+    """A station that stopped reporting must settle on DEFAULT_SCAN_INTERVAL
+    instead of cycling 3/3/5-minute checks."""
+    obs = datetime(2026, 8, 23, 0, 51, tzinfo=timezone.utc)
+    coordinator = _seeded_coordinator(hass_with_domain, obs)
+    data = _report(obs)
+
+    # Well past the slot (obs + 63 min) and past the margin ceiling.
+    now = obs + timedelta(hours=2)
+    with freeze_time(now):
+        assert (
+            coordinator._compute_next_update_interval(data) == DEFAULT_SCAN_INTERVAL
+        )
+
+    # Slightly late (inside the margin ceiling): short retries, then the
+    # normal cycle - never the 5-minute floor.
+    now = obs + timedelta(minutes=70)
+    delays = []
+    for _ in range(4):
+        with freeze_time(now):
+            delay = coordinator._compute_next_update_interval(data)
+        delays.append(delay)
+        now += delay
+    assert delays[:2] == list(OBS_STALE_RETRY_INTERVALS)
+    assert delays[2] == DEFAULT_SCAN_INTERVAL
+
+
+async def test_restart_with_unchanged_report_waits_for_next_slot(hass_with_domain):
+    """After a restart the seeded report is simply refetched: that is not a
+    late report, so no 3-minute retry chain - wait for the next slot."""
+    obs = datetime(2026, 8, 23, 10, 53, tzinfo=timezone.utc)
+    coordinator = _seeded_coordinator(hass_with_domain, obs)
+    now = obs + timedelta(minutes=6)
+
+    with freeze_time(now):
+        delay = coordinator._compute_next_update_interval(_report(obs))
+
+    # slot = obs + 60 + 3 = 11:56 -> 57 min away (+ jitter), clamped to 60.
+    assert delay >= timedelta(minutes=57)
+    assert delay <= ADAPTIVE_MAX_INTERVAL
+    assert coordinator._stale_retry_count == 0
+
+
+async def test_seed_deduplicates_repeated_history_records(hass_with_domain):
+    """History appends on every fetch; the same report stored five times
+    must count as one margin sample, not five."""
+    t0 = datetime(2026, 8, 23, 8, 0, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=30)
+    record_t0 = {
+        "metar_type": "METAR",
+        "observation_time": t0.isoformat(),
+        "receipt_time": (t0 + timedelta(minutes=10)).isoformat(),
+    }
+    record_t1 = {
+        "metar_type": "METAR",
+        "observation_time": t1.isoformat(),
+        "receipt_time": (t1 + timedelta(minutes=2)).isoformat(),
+    }
+    storage = _StubStorage([record_t0] * 4 + [record_t1])
+    coordinator = MetarDataUpdateCoordinator(
+        hass_with_domain, _StubMetarClient([]), "TEST", DEFAULT_SCAN_INTERVAL
+    )
+
+    await coordinator.async_seed_from_storage(storage)
+
+    assert len(coordinator._margin_samples) == 2
+    assert len(coordinator._interval_samples) == 1
+
+
+async def test_polling_disabled_also_disables_taf_polling(hass, aioclient_mock):
+    """The per-entry polling toggle must cover the TAF coordinator too."""
+    entry = await _setup_lflc(hass, aioclient_mock, pref_disable_polling=True)
+    taf_coordinator = hass.data[DOMAIN]["taf"][entry.entry_id]["LFLC"]
+    assert taf_coordinator.config_entry is entry
+
+    await _teardown(hass, entry)

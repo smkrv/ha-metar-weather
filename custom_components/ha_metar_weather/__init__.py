@@ -409,12 +409,34 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         if obs_time.tzinfo is None:
             obs_time = obs_time.replace(tzinfo=timezone.utc)
 
+        now = dt_util.utcnow()
+
         if (
             self._last_observation_time is not None
             and obs_time == self._last_observation_time
         ):
             # Same report as last time - the next one hasn't been
             # published yet.
+            #
+            # The next routine report is due at the last routine METAR plus
+            # the learned interval (a SPECI doesn't move the routine grid).
+            # If that slot is still ahead of us (restart with a seeded
+            # report, SPECI boost check, manual update), the report isn't
+            # "late" - wait for the slot instead of burning retries.
+            slot = (self._last_metar_time or obs_time) + self._learned_interval()
+            if now < slot:
+                jitter = timedelta(seconds=random.randint(*ADAPTIVE_JITTER_SECONDS))
+                self._stale_retry_count = 0
+                return max(
+                    ADAPTIVE_MIN_INTERVAL,
+                    min(slot + jitter - now, ADAPTIVE_MAX_INTERVAL),
+                )
+            # Overdue by more than the largest plausible publication lag:
+            # the station is silent (or its feed is down). Short retries
+            # would only hammer it, so go straight to the normal cycle.
+            if now - slot > ADAPTIVE_MARGIN_MAX:
+                self._stale_retry_count = 0
+                return DEFAULT_SCAN_INTERVAL
             if self._stale_retry_count < len(OBS_STALE_RETRY_INTERVALS):
                 delay = OBS_STALE_RETRY_INTERVALS[self._stale_retry_count]
                 self._stale_retry_count += 1
@@ -436,8 +458,13 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             self._stale_retry_count = 0
             raw_interval = self._learned_interval_raw()
             fallback_target = obs_time + raw_interval + self._learned_interval()
-            anchor_delay = fallback_target - dt_util.utcnow()
-            delay = min(anchor_delay, DEFAULT_SCAN_INTERVAL)
+            anchor_delay = fallback_target - now
+            if anchor_delay < ADAPTIVE_MIN_INTERVAL:
+                # Slot already in the past: a 5-minute clamp would just
+                # restart the retry chain; use the normal cycle instead.
+                delay = DEFAULT_SCAN_INTERVAL
+            else:
+                delay = min(anchor_delay, DEFAULT_SCAN_INTERVAL)
             _LOGGER.debug(
                 "%s: observation still unchanged after %d retries, "
                 "anchoring to next native release slot at %s (capped at %s)",
@@ -453,8 +480,13 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         # cadence/margin themselves; a SPECI still updates the sensors and
         # still anchors the *next* check, it just isn't trusted as a
         # sample of the station's routine rhythm.
+        # Only an explicit "METAR" is trusted as a routine report. A SPECI
+        # is off-grid; an untyped report (AVWX has no metarType) can't be
+        # told apart from a SPECI, so it is never used as a cadence sample
+        # (same rule as the storage seeding: never guess).
         report_type = (data.get("metar_type") or "").upper()
-        is_metar = report_type in ("METAR", "")  # AVWX has no metarType field
+        is_metar = report_type == "METAR"
+        is_speci = report_type == "SPECI"
         if is_metar:
             if self._last_metar_time is not None:
                 delta = obs_time - self._last_metar_time
@@ -468,8 +500,14 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
 
         interval = self._learned_interval()
         jitter = timedelta(seconds=random.randint(*ADAPTIVE_JITTER_SECONDS))
-        target = obs_time + interval + jitter
-        delay = target - dt_util.utcnow()
+        # A SPECI doesn't shift the routine release grid: keep anchoring on
+        # the last routine METAR so the next routine report isn't fetched
+        # a SPECI-offset late.
+        anchor = obs_time
+        if is_speci and self._last_metar_time is not None:
+            anchor = self._last_metar_time
+        target = anchor + interval + jitter
+        delay = target - now
         return max(ADAPTIVE_MIN_INTERVAL, min(delay, ADAPTIVE_MAX_INTERVAL))
 
     async def async_seed_from_storage(self, storage) -> None:
@@ -494,6 +532,7 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         metar_times: list[datetime] = []
+        seen: set[datetime] = set()
         for record in records:
             if not isinstance(record, dict) or record.get("metar_type") != "METAR":
                 continue
@@ -502,6 +541,12 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                 continue
             if obs.tzinfo is None:
                 obs = obs.replace(tzinfo=timezone.utc)
+            # History appends on every fetch, so the same report can be
+            # stored repeatedly - count each observation once, or the
+            # margin samples would be N copies of one publication delay.
+            if obs in seen:
+                continue
+            seen.add(obs)
             metar_times.append(obs)
 
             receipt = dt_util.parse_datetime(record.get("receipt_time") or "")
@@ -628,11 +673,13 @@ class TafDataUpdateCoordinator(DataUpdateCoordinator["dict[str, Any] | None"]):
         hass: HomeAssistant,
         client: AWCTafApiClient,
         station: str,
+        config_entry: ConfigEntry | None = None,
     ):
         """Initialize the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN}_{station}_taf",
             update_interval=DEFAULT_TAF_SCAN_INTERVAL,
         )
@@ -771,7 +818,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     taf_client = AWCTafApiClient(hass)
     taf_coordinators: dict[str, TafDataUpdateCoordinator] = {}
     for station_upper in coordinators:
-        taf_coordinator = TafDataUpdateCoordinator(hass, taf_client, station_upper)
+        taf_coordinator = TafDataUpdateCoordinator(
+            hass, taf_client, station_upper, config_entry=entry
+        )
         taf_coordinators[station_upper] = taf_coordinator
         entry.async_create_background_task(
             hass,
