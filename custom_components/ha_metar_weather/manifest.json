@@ -10,9 +10,7 @@
   "loggers": ["custom_components.ha_metar_weather"],
   "quality_scale": "silver",
   "requirements": [
-    "avwx-engine>=1.7.2",
-    "aiohttp>=3.8.0",
-    "certifi>=2024.2.2"
+    "avwx-engine>=1.7.2"
   ],
   "single_config_entry": false,
   "version": "4.1.0"
