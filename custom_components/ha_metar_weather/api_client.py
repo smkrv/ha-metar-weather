@@ -188,6 +188,11 @@ class MetarApiClient:
         self.icao = icao.upper()
         self.session = async_get_clientsession(hass)
         self._last_source: Optional[DataSource] = None
+        # Routine-METAR history ((obs_time, receipt_time) pairs) carried by
+        # the last successful AWC response; empty after an AVWX fetch, which
+        # has no history. Adaptive polling learns cadence and publication
+        # lag from it instead of from its own polling.
+        self.routine_history: list = []
 
         # Initialize clients
         self._awc_client = AWCApiClient(hass)
@@ -225,6 +230,7 @@ class MetarApiClient:
         Returns:
             Parsed METAR data dictionary or None on error
         """
+        self.routine_history = []
         # Try AWC API first (primary source)
         try:
             data = await self._fetch_from_awc()
@@ -275,6 +281,7 @@ class MetarApiClient:
         if not raw_data:
             return None
 
+        self.routine_history = list(self._awc_client.last_routine_history)
         awc_meta = self._awc_client.parse_awc_response(raw_data)
 
         raw_metar = awc_meta.get("raw_metar")

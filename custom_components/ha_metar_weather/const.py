@@ -94,21 +94,34 @@ RETRY_INTERVALS: Final[tuple[int, ...]] = (2, 5, 10, 30)
 # cadence instead of a flat DEFAULT_SCAN_INTERVAL for every station
 # worldwide (30-min European vs. 60-min US stations, etc.).
 #
-# Jitter is load-bearing here, not cosmetic. Today's spread between
-# installations comes from the restart clock: DataUpdateCoordinator counts
-# its interval from whenever the coordinator was created, so every install
-# sits at its own offset inside the cycle. Anchoring on observation_time
-# removes exactly that - every install watching, say, a :20/:50 station now
-# converges on the same instant, so the jitter below is the *only* spread
-# left. It has to be a meaningful fraction of the cadence, not a few
-# seconds.
+# The per-install offset is load-bearing here, not cosmetic. Anchoring on
+# the station's publication removes the spread that the restart clock used
+# to give: every install watching, say, a :20/:50 station converges on the
+# same instant, so the offset below is the *only* spread left. It must be a
+# meaningful fraction of the cadence, and it must be stable per install (see
+# ADAPTIVE_OFFSET_SPAN_SECONDS).
 ADAPTIVE_INTERVAL_MARGIN: Final[timedelta] = timedelta(minutes=5)
 ADAPTIVE_MARGIN_MIN: Final[timedelta] = timedelta(minutes=1)
 ADAPTIVE_MARGIN_MAX: Final[timedelta] = timedelta(minutes=15)
-ADAPTIVE_JITTER_SECONDS: Final[tuple[int, int]] = (0, 480)  # 0-8 minutes
+# Per-install offset, derived once from entry_id + station (hash mod this
+# span, so 0-480 s = 0-8 min) and kept for the life of the entry. A value
+# re-drawn every cycle would be trimmed back by the polling ceiling and
+# slide to zero within hours; a stable offset keeps the installs spread.
+ADAPTIVE_OFFSET_SPAN_SECONDS: Final[int] = 481
 ADAPTIVE_MIN_INTERVAL: Final[timedelta] = timedelta(minutes=5)
-ADAPTIVE_MAX_INTERVAL: Final[timedelta] = DEFAULT_SCAN_INTERVAL * 2
-ADAPTIVE_LEARNED_INTERVAL_SAMPLES: Final[int] = 5
+# Largest step of a station's polling grid: the station is polled at least
+# every DEFAULT_SCAN_INTERVAL (an hourly station keeps a mid-cycle check, so
+# a SPECI issued between two routine reports is not superseded unseen).
+# Adaptive scheduling only shifts the *phase* of that cycle so a fetch lands
+# just after publication. The delay of one fetch is the grid step plus at
+# most ADAPTIVE_MIN_INTERVAL (a grid point closer than the floor is skipped).
+ADAPTIVE_MAX_INTERVAL: Final[timedelta] = DEFAULT_SCAN_INTERVAL
+# Routine METARs remembered for cadence and publication-lag learning, taken
+# from the history inside each AWC response (not from our own polling).
+ADAPTIVE_HISTORY_SIZE: Final[int] = 24
+# Retry chains that ended without the expected report, in a row, before the
+# coordinator stops chasing a chronically late station and polls flat.
+ADAPTIVE_CHRONIC_LAG_CYCLES: Final[int] = 3
 
 # Sanity bounds for a single observation-to-observation delta before it is
 # trusted as a cadence sample. Below the floor it is almost certainly a
@@ -121,10 +134,9 @@ ADAPTIVE_DELTA_MAX: Final[timedelta] = timedelta(minutes=90)
 # (observation_time unchanged from the previous fetch) - e.g. the API
 # hasn't ingested the latest cycle yet. Kept short and few so a
 # temporarily late report doesn't turn into a tight polling loop; once
-# exhausted, the coordinator anchors to the station's next native release
-# slot, capped at DEFAULT_SCAN_INTERVAL so a station whose publication lag
-# runs long still gets checked within one normal cycle instead of an
-# entire missed one.
+# exhausted, the coordinator moves on to the station's next grid point
+# (never further than one grid step away), so a station whose publication
+# lag runs long still gets checked within one normal cycle.
 OBS_STALE_RETRY_INTERVALS: Final[tuple[timedelta, ...]] = (
     timedelta(minutes=3),
     timedelta(minutes=3),
