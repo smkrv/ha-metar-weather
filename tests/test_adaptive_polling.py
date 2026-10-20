@@ -479,7 +479,9 @@ def test_history_is_bounded(hass_with_domain):
 
 
 def _coordinator_for(hass, entry_id: str, station: str = "TEST"):
-    entry = SimpleNamespace(entry_id=entry_id)
+    # Core registers the coordinator's shutdown on the entry, so the stand-in
+    # needs async_on_unload.
+    entry = SimpleNamespace(entry_id=entry_id, async_on_unload=lambda _cb: None)
     return MetarDataUpdateCoordinator(
         hass, _StubMetarClient([]), station, DEFAULT_SCAN_INTERVAL,
         config_entry=entry,
