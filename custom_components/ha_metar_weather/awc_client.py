@@ -52,6 +52,9 @@ class AWCApiClient:
         """
         self.hass = hass
         self.session = async_get_clientsession(hass)
+        # Routine-METAR history of the last fetch_single_metar() response
+        # (see extract_routine_history); consumed by MetarApiClient.
+        self.last_routine_history: List[tuple[datetime, Optional[datetime]]] = []
 
     async def fetch_metar(
         self,
@@ -155,9 +158,56 @@ class AWCApiClient:
             METAR data dictionary or None
         """
         result = await self.fetch_metar(icao)
+        self.last_routine_history = (
+            self.extract_routine_history(result) if result else []
+        )
         if result and len(result) > 0:
             return self.select_newest_report(result)
         return None
+
+    @staticmethod
+    def extract_routine_history(
+        reports: List[Dict[str, Any]]
+    ) -> List[tuple[datetime, Optional[datetime]]]:
+        """Routine-METAR history carried by one AWC response.
+
+        Every response holds the station's last ``hours`` of reports, so a
+        single fetch already shows what the station *published* - cadence
+        and publication lag can be learned from that, independent of when
+        this install happened to poll. Returns ``(obs_time, receipt_time)``
+        per routine METAR (``metarType == "METAR"``; SPECIs and untyped
+        items are skipped), ascending by observation time. An original and
+        its COR share one observation time and are merged to one entry that
+        keeps the *earliest* receipt - the first publication of that cycle,
+        not the correction. ``receipt_time`` is None when AWC gave none.
+        Observation times beyond the future tolerance are skipped (same
+        rule as ``select_newest_report``).
+        """
+        max_plausible = (
+            datetime.now(timezone.utc) + FUTURE_OBSERVATION_TOLERANCE
+        ).timestamp()
+        by_obs: Dict[float, Optional[float]] = {}
+        for report in reports:
+            if str(report.get("metarType") or "").upper() != "METAR":
+                continue
+            obs = AWCApiClient._parse_time_value(report.get("obsTime"))
+            if obs is None or obs > max_plausible:
+                continue
+            receipt = AWCApiClient._parse_time_value(report.get("receiptTime"))
+            held = by_obs.get(obs)
+            if obs not in by_obs or held is None:
+                by_obs[obs] = receipt
+            elif receipt is not None:
+                by_obs[obs] = min(held, receipt)
+        return [
+            (
+                datetime.fromtimestamp(obs, tz=timezone.utc),
+                datetime.fromtimestamp(receipt, tz=timezone.utc)
+                if receipt is not None
+                else None,
+            )
+            for obs, receipt in sorted(by_obs.items())
+        ]
 
     @staticmethod
     def _parse_time_value(value: Any) -> Optional[float]:
@@ -370,6 +420,27 @@ class AWCApiClient:
 
             raw_metar = data.get("rawOb", "")
 
+            # Report type ("METAR" vs "SPECI"): adaptive-polling cadence
+            # learning needs to know this, so an off-grid SPECI in the same
+            # feed doesn't drag the learned median off the station's real
+            # routine rhythm.
+            metar_type = data.get("metarType")
+            metar_type = metar_type.upper() if isinstance(metar_type, str) else None
+
+            # receiptTime: when AWC actually ingested this report, distinct
+            # from obsTime (when the station observed it). The gap between
+            # the two is the station's real publication lag, which
+            # adaptive-polling learns from instead of assuming a fixed
+            # margin. Parsed the same way as obsTime above; absent on the
+            # AVWX fallback path, which is why callers must treat this as
+            # optional.
+            receipt_epoch = AWCApiClient._parse_time_value(data.get("receiptTime"))
+            receipt_time = (
+                datetime.fromtimestamp(receipt_epoch, tz=timezone.utc)
+                if receipt_epoch is not None
+                else None
+            )
+
             # CAVOK implies visibility of at least 10 km. The textual CAVOK flag
             # itself is produced by the shared parser; here we only backfill the
             # numeric so AWC's authoritative visibility stays correct.
@@ -386,6 +457,10 @@ class AWCApiClient:
                     observation_time.isoformat()
                     if observation_time is not None
                     else None
+                ),
+                "metar_type": metar_type,
+                "receipt_time": (
+                    receipt_time.isoformat() if receipt_time is not None else None
                 ),
                 "temperature": temp,
                 "dew_point": dewp,
