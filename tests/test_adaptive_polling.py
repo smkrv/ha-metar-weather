@@ -18,6 +18,7 @@ tests use MockConfigEntry + aioclient_mock, matching test_report_selection.py.
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -125,7 +126,10 @@ def _history(*obs_times: datetime, lag: timedelta = 4 * MIN):
 
 def _coordinator(hass, *, offset: timedelta = 2 * MIN, client=None):
     coordinator = MetarDataUpdateCoordinator(
-        hass, client or _StubMetarClient([]), "TEST", DEFAULT_SCAN_INTERVAL
+        hass,
+        cast(Any, client or _StubMetarClient([])),
+        "TEST",
+        DEFAULT_SCAN_INTERVAL,
     )
     coordinator._offset = offset
     return coordinator
@@ -379,6 +383,124 @@ def test_report_published_within_the_margin_resets_the_exhaustion_count(
     assert c._chronic_lag is False
 
 
+def test_chronic_lag_holds_flat_polling_on_unchanged_reports(hass_with_domain):
+    """Hourly station, constant 25 min lag (> margin cap 15), chronic mode
+    active: an unchanged report - before its slot or inside the retry window
+    - must neither start a 3-minute retry chain nor take a mid-cycle grid
+    point; the station is polled flat (30 min) until a report is published
+    within the margin. Time moves forward only."""
+    c = _coordinator(hass_with_domain)
+    lag = 25 * MIN
+    obs = T0
+    history = _history(obs - 60 * MIN, obs, lag=lag)
+    # Chronic mode as it stands after three exhausted cycles in a row.
+    c._chronic_lag = True
+    c._exhausted_cycles = 3
+
+    seen = obs + lag  # 10:25, first publication of the 10:00 report
+    assert _next(c, _report(obs, receipt_time=obs + lag), seen, history) == (
+        DEFAULT_SCAN_INTERVAL
+    )
+    report = _report(obs, receipt_time=obs + lag)
+    c._stale_retry_count = 2  # a leftover count must not survive flat mode
+    # 10:55 (slot 11:15 still ahead) and 11:16 / 11:19 (inside the retry
+    # window of a non-chronic station): all flat, no retry counted.
+    for minutes in (55, 76, 79):
+        assert _next(c, report, obs + minutes * MIN, history) == DEFAULT_SCAN_INTERVAL
+        assert c._stale_retry_count == 0
+        assert c._chronic_lag is True
+
+    # 12:00 report published at 12:04 (lag 4): recovery. Learned margin is
+    # still 15 (p90 of [4, 25, 25] clamped), origin 12:00, offset 2 ->
+    # base 12:17, first seen at 12:06 -> 11 minutes.
+    obs2 = obs + 120 * MIN
+    h2 = [(obs, obs + lag), (obs + 60 * MIN, obs + 60 * MIN + lag), (obs2, obs2 + 4 * MIN)]
+    delay = _next(c, _report(obs2, receipt_time=obs2 + 4 * MIN), obs2 + 6 * MIN, h2)
+    assert c._chronic_lag is False
+    assert c._exhausted_cycles == 0
+    assert delay == 11 * MIN
+
+
+# --- implausible future-dated observations ------------------------------------
+
+
+def test_future_only_report_does_not_postpone_polling(hass_with_domain):
+    """A routine METAR dated 6 h ahead (mis-keyed DDHHMM group) is the only
+    candidate: it must not become the grid origin. Hand-computed: no genuine
+    routine METAR known -> origin = now 00:00, default margin 5, offset 2 ->
+    base 00:07, floor 00:05 -> 7 minutes (not 6 h 7 min)."""
+    midnight = datetime(2026, 8, 24, 0, 0, tzinfo=timezone.utc)
+    c = _coordinator(hass_with_domain)
+    future = midnight + 6 * 60 * MIN
+    delay = _next(c, _report(future, receipt_time=midnight), midnight)
+    assert delay == 7 * MIN
+    assert c._routine_log == {}
+    assert c._last_metar_time is None
+
+    # The genuine 00:00 report shows up at 00:10 (receipt 00:04, lag 4):
+    # margin 4 -> base 00:06, floor 00:15, step 30 -> 00:36 = 26 minutes.
+    history = _history(midnight - 30 * MIN, midnight)
+    delay = _next(
+        c,
+        _report(midnight, receipt_time=midnight + 4 * MIN),
+        midnight + 10 * MIN,
+        history,
+    )
+    assert delay == 26 * MIN
+    assert c._last_metar_time == midnight
+
+
+def test_untyped_future_report_does_not_postpone_polling(hass_with_domain):
+    """The AVWX path (no type, no receipt time) with a future date and
+    nothing learned yet: bounded, on the default-margin grid."""
+    midnight = datetime(2026, 8, 24, 0, 0, tzinfo=timezone.utc)
+    c = _coordinator(hass_with_domain)
+    future = midnight + 6 * 60 * MIN
+    assert _next(c, _report(future, metar_type=None), midnight) == 7 * MIN
+    assert c._routine_log == {}
+    assert c._last_observation_time is None
+
+
+def test_future_report_keeps_the_last_genuine_origin(hass_with_domain):
+    """With a genuine routine METAR known, a later implausible future
+    report keeps scheduling on that report's grid."""
+    c = _coordinator(hass_with_domain)
+    history = _history(T0 - 30 * MIN, T0)
+    first = _next(c, _report(T0, receipt_time=T0 + 4 * MIN), T0 + 6 * MIN, history)
+    bogus = _report(T0 + 6 * 60 * MIN, receipt_time=T0 + 7 * MIN)
+    delay = _next(c, bogus, T0 + 7 * MIN, history)
+    # origin 10:00, margin 4, offset 2 -> base 10:06; floor 10:12 -> 10:36.
+    assert delay == 29 * MIN
+    assert first == 30 * MIN
+    assert c._last_metar_time == T0
+
+
+def test_purged_future_origin_does_not_linger(hass_with_domain):
+    """When the only retained entry is a future one, purging it must clear
+    the grid origin too (not leave the stale future value behind)."""
+    c = _coordinator(hass_with_domain)
+    future = T0 + 6 * 60 * MIN
+    c._routine_log[future] = None
+    c._last_metar_time = future
+    _next(c, _report(future, receipt_time=T0), T0)
+    assert c._routine_log == {}
+    assert c._last_metar_time is None
+
+
+def test_already_retained_future_entry_is_purged(hass_with_domain):
+    """A future entry that got into the log earlier (older version, odd
+    clock) is dropped on the next pass instead of anchoring the grid."""
+    c = _coordinator(hass_with_domain)
+    c._routine_log[T0 + 6 * 60 * MIN] = None
+    c._last_metar_time = T0 + 6 * 60 * MIN
+    history = _history(T0 - 30 * MIN, T0)
+    delay = _next(c, _report(T0, receipt_time=T0 + 4 * MIN), T0 + 6 * MIN, history)
+    assert T0 + 6 * 60 * MIN not in c._routine_log
+    assert c._last_metar_time == T0
+    # origin 10:00, margin 4, offset 2 -> base 10:06, floor 10:11 -> 10:36.
+    assert delay == 30 * MIN
+
+
 # --- learning from AWC's own history -------------------------------------------
 
 
@@ -483,8 +605,8 @@ def _coordinator_for(hass, entry_id: str, station: str = "TEST"):
     # needs async_on_unload.
     entry = SimpleNamespace(entry_id=entry_id, async_on_unload=lambda _cb: None)
     return MetarDataUpdateCoordinator(
-        hass, _StubMetarClient([]), station, DEFAULT_SCAN_INTERVAL,
-        config_entry=entry,
+        hass, cast(Any, _StubMetarClient([])), station, DEFAULT_SCAN_INTERVAL,
+        config_entry=cast(Any, entry),
     )
 
 

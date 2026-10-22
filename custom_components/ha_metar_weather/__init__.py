@@ -372,10 +372,22 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
     def _learn_routine_reports(
         self, entries: list[tuple[datetime, datetime | None]]
     ) -> None:
-        """Merge (obs_time, receipt_time) pairs of routine METARs."""
+        """Merge (obs_time, receipt_time) pairs of routine METARs.
+
+        Observation times beyond FUTURE_OBSERVATION_TOLERANCE (a mis-keyed
+        DDHHMM group, a broken station clock) are never learned, and any
+        such entry already retained is dropped: a future timestamp would
+        become the grid origin and postpone every following fetch until
+        the clock catches up.
+        """
+        horizon = dt_util.utcnow() + FUTURE_OBSERVATION_TOLERANCE
+        for implausible in [t for t in self._routine_log if t > horizon]:
+            del self._routine_log[implausible]
         for obs, receipt in entries:
             if obs.tzinfo is None:
                 obs = obs.replace(tzinfo=timezone.utc)
+            if obs > horizon:
+                continue
             lag = None
             if receipt is not None:
                 if receipt.tzinfo is None:
@@ -389,8 +401,9 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                 self._routine_log[obs] = lag
         for stale in sorted(self._routine_log)[:-ADAPTIVE_HISTORY_SIZE]:
             del self._routine_log[stale]
-        if self._routine_log:
-            self._last_metar_time = max(self._routine_log)
+        self._last_metar_time = (
+            max(self._routine_log) if self._routine_log else None
+        )
 
     def _grid_delay(self, origin: datetime, now: datetime) -> timedelta:
         """Delay to the next point of the station's own polling grid.
@@ -449,6 +462,19 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         if report_type == "METAR":
             entries.append((obs_time, receipt))
         self._learn_routine_reports(entries)
+        if obs_time > now + FUTURE_OBSERVATION_TOLERANCE:
+            # Only reachable when every candidate report was implausibly
+            # future-dated. It must neither anchor the grid nor count as
+            # the held observation: keep to the grid of the last genuine
+            # routine METAR (or of now), so the next fetch stays bounded.
+            _LOGGER.debug(
+                "%s: observation time %s is implausibly in the future, "
+                "ignored for scheduling",
+                self.station,
+                obs_time.isoformat(),
+            )
+            self._stale_retry_count = 0
+            return self._grid_delay(self._last_metar_time or now, now)
         # A SPECI or untyped report never moves the origin.
         origin = self._last_metar_time or obs_time
 
@@ -462,6 +488,12 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             # report isn't late; if it is overdue by more than the largest
             # plausible lag the station is silent (or its feed is down).
             # Both wait for the next grid point instead of burning retries.
+            if self._chronic_lag:
+                # Flat polling holds until a new report is published within
+                # the margin (judged in the new-observation branch below) -
+                # no short retry, no mid-cycle grid point in between.
+                self._stale_retry_count = 0
+                return DEFAULT_SCAN_INTERVAL
             slot = origin + self._learned_cadence() + self._learned_margin()
             if now < slot or now - slot > ADAPTIVE_MARGIN_MAX:
                 self._stale_retry_count = 0

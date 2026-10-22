@@ -194,10 +194,11 @@ class AWCApiClient:
             if obs is None or obs > max_plausible:
                 continue
             receipt = AWCApiClient._parse_time_value(report.get("receiptTime"))
-            if obs not in by_obs or by_obs[obs] is None:
+            held = by_obs.get(obs)
+            if obs not in by_obs or held is None:
                 by_obs[obs] = receipt
             elif receipt is not None:
-                by_obs[obs] = min(by_obs[obs], receipt)
+                by_obs[obs] = min(held, receipt)
         return [
             (
                 datetime.fromtimestamp(obs, tz=timezone.utc),
