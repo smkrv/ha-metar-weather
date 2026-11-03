@@ -56,13 +56,15 @@ class AWCApiClient:
     async def fetch_metar(
         self,
         station_ids: str | List[str],
-        hours_before: float = 2.0
+        hours_before: int = 2
     ) -> Optional[List[Dict[str, Any]]]:
         """Fetch METAR data from AWC API.
 
         Args:
             station_ids: Single ICAO code or list of ICAO codes
-            hours_before: Hours of data to retrieve (default 2)
+            hours_before: Whole hours of data to retrieve (default 2). AWC
+                answers HTTP 400 "Invalid value for hours" to a fractional
+                value such as ``2.0`` (since 2026-11-02, issue #24).
 
         Returns:
             List of METAR data dictionaries or None on error
