@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import logging
 import asyncio
+import math
 import re
+import zlib
 from asyncio import timeout as async_timeout
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Final
 
 import voluptuous as vol
@@ -49,6 +51,17 @@ from .const import (
     DEFAULT_TAF_SCAN_INTERVAL,
     FUTURE_OBSERVATION_TOLERANCE,
     RETRY_INTERVALS,
+    ADAPTIVE_INTERVAL_MARGIN,
+    ADAPTIVE_MARGIN_MIN,
+    ADAPTIVE_MARGIN_MAX,
+    ADAPTIVE_OFFSET_SPAN_SECONDS,
+    ADAPTIVE_HISTORY_SIZE,
+    ADAPTIVE_CHRONIC_LAG_CYCLES,
+    ADAPTIVE_MIN_INTERVAL,
+    ADAPTIVE_MAX_INTERVAL,
+    ADAPTIVE_DELTA_MIN,
+    ADAPTIVE_DELTA_MAX,
+    OBS_STALE_RETRY_INTERVALS,
     ICAO_REGEX,
 )
 
@@ -229,11 +242,13 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         client: MetarApiClient,
         station: str,
         update_interval: timedelta,
+        config_entry: ConfigEntry | None = None,
     ):
         """Initialize the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN}_{station}",
             update_interval=update_interval,
         )
@@ -242,6 +257,30 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
         self._retry_count = 0
         self._consecutive_failures = 0
         self._accepted_source: str | None = None
+        # Routine METARs the station published, learned from the history
+        # inside each AWC response: observation time -> publication lag
+        # (receiptTime - obsTime, None when unknown). Cadence and margin
+        # are derived from this, never from our own polling, so a report
+        # we fetched late cannot masquerade as the station's rhythm.
+        self._routine_log: dict[datetime, timedelta | None] = {}
+        # Last observation_time seen from any report (METAR or SPECI) -
+        # drives the "is this actually new data" / retry-backoff check.
+        self._last_observation_time: datetime | None = None
+        # Newest routine METAR (not a SPECI): the origin of the polling grid.
+        self._last_metar_time: datetime | None = None
+        self._stale_retry_count = 0
+        # Retry chains that ended without the report, in a row; at
+        # ADAPTIVE_CHRONIC_LAG_CYCLES the station is polled flat until a
+        # report is published within the margin again.
+        self._exhausted_cycles = 0
+        self._exhaust_pending = False
+        self._chronic_lag = False
+        # Stable per-install offset on the station's grid (see const.py).
+        entry_id = str(getattr(config_entry, "entry_id", "") or "")
+        self._offset = timedelta(
+            seconds=zlib.crc32(f"{entry_id}:{station}".encode())
+            % ADAPTIVE_OFFSET_SPAN_SECONDS
+        )
 
     @property
     def accepted_source(self) -> str | None:
@@ -299,10 +338,216 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
             return held
         return fetched
 
+    def _learned_cadence(self) -> timedelta:
+        """Station's native reporting cadence, no margin.
+
+        Lower median of the deltas between consecutive routine METARs the
+        station published (15-90 min band; AWC's own history, so a report
+        this install fetched late or skipped cannot distort it). The lower
+        median errs towards the shorter cadence. Falls back to
+        DEFAULT_SCAN_INTERVAL while no delta is known.
+        """
+        times = sorted(self._routine_log)
+        deltas = sorted(
+            later - earlier
+            for earlier, later in zip(times, times[1:])
+            if ADAPTIVE_DELTA_MIN <= later - earlier <= ADAPTIVE_DELTA_MAX
+        )
+        if not deltas:
+            return DEFAULT_SCAN_INTERVAL
+        return deltas[(len(deltas) - 1) // 2]
+
+    def _learned_margin(self) -> timedelta:
+        """Publication lag to wait after an observation: p90 of the known
+        lags (nearest rank), clamped to [ADAPTIVE_MARGIN_MIN,
+        ADAPTIVE_MARGIN_MAX]. ADAPTIVE_INTERVAL_MARGIN until one is known
+        (always on the AVWX path, which has no receiptTime).
+        """
+        lags = sorted(lag for lag in self._routine_log.values() if lag is not None)
+        if not lags:
+            return ADAPTIVE_INTERVAL_MARGIN
+        p90 = lags[max(0, math.ceil(len(lags) * 0.9) - 1)]
+        return max(ADAPTIVE_MARGIN_MIN, min(p90, ADAPTIVE_MARGIN_MAX))
+
+    def _learn_routine_reports(
+        self, entries: list[tuple[datetime, datetime | None]]
+    ) -> None:
+        """Merge (obs_time, receipt_time) pairs of routine METARs.
+
+        Observation times beyond FUTURE_OBSERVATION_TOLERANCE (a mis-keyed
+        DDHHMM group, a broken station clock) are never learned, and any
+        such entry already retained is dropped: a future timestamp would
+        become the grid origin and postpone every following fetch until
+        the clock catches up.
+        """
+        horizon = dt_util.utcnow() + FUTURE_OBSERVATION_TOLERANCE
+        for implausible in [t for t in self._routine_log if t > horizon]:
+            del self._routine_log[implausible]
+        for obs, receipt in entries:
+            if obs.tzinfo is None:
+                obs = obs.replace(tzinfo=timezone.utc)
+            if obs > horizon:
+                continue
+            lag = None
+            if receipt is not None:
+                if receipt.tzinfo is None:
+                    receipt = receipt.replace(tzinfo=timezone.utc)
+                candidate = receipt - obs
+                # A negative or wildly large lag is clock skew or a parsing
+                # anomaly, not a real publication delay.
+                if timedelta(0) <= candidate <= ADAPTIVE_MARGIN_MAX * 2:
+                    lag = candidate
+            if self._routine_log.get(obs) is None:
+                self._routine_log[obs] = lag
+        for stale in sorted(self._routine_log)[:-ADAPTIVE_HISTORY_SIZE]:
+            del self._routine_log[stale]
+        self._last_metar_time = (
+            max(self._routine_log) if self._routine_log else None
+        )
+
+    def _grid_delay(self, origin: datetime, now: datetime) -> timedelta:
+        """Delay to the next point of the station's own polling grid.
+
+        origin = last routine METAR + margin; step = cadence split into
+        equal parts of at most ADAPTIVE_MAX_INTERVAL (30 -> 30, 60 -> 30,
+        20 -> 20); target = origin + k * step + offset for the smallest k
+        that lies at least ADAPTIVE_MIN_INTERVAL ahead. The offset goes on
+        *after* the step, so it is never trimmed away.
+        """
+        cadence = self._learned_cadence()
+        parts = max(1, math.ceil(cadence / ADAPTIVE_MAX_INTERVAL))
+        step = cadence / parts
+        base = origin + self._learned_margin() + self._offset
+        floor = now + ADAPTIVE_MIN_INTERVAL
+        k = 0 if base >= floor else -((base - floor) // step)
+        return base + k * step - now
+
+    def _compute_next_update_interval(
+        self,
+        data: dict,
+        history: list[tuple[datetime, datetime | None]] | None = None,
+    ) -> timedelta:
+        """Schedule the next fetch on the station's own polling grid.
+
+        The station is polled at least every DEFAULT_SCAN_INTERVAL; the
+        grid only shifts the phase of that cycle so a fetch lands just
+        after publication (an hourly station keeps a mid-cycle check, so a
+        SPECI is not superseded unseen). Every branch - new report, slot
+        still ahead, silent station, retry exhaustion - targets a point of
+        that grid plus the install's stable offset, so installs stay spread.
+        Short stale retries (OBS_STALE_RETRY_INTERVALS) bridge a report
+        that is a little late; after ADAPTIVE_CHRONIC_LAG_CYCLES exhausted
+        chains in a row the station is polled flat until a report is
+        published within the margin again.
+
+        Cadence and lag come from ``history`` - the routine METARs inside
+        the AWC response - and a typed METAR in ``data``. An untyped report
+        (AVWX) never feeds them, and never moves the grid origin.
+        """
+        obs_time = dt_util.parse_datetime(data.get("observation_time") or "")
+        if obs_time is None:
+            # Can't reason about cadence without an observation time -
+            # keep the fixed default rather than guessing.
+            self._stale_retry_count = 0
+            return DEFAULT_SCAN_INTERVAL
+
+        if obs_time.tzinfo is None:
+            obs_time = obs_time.replace(tzinfo=timezone.utc)
+
+        now = dt_util.utcnow()
+
+        entries = list(history or [])
+        report_type = (data.get("metar_type") or "").upper()
+        receipt = dt_util.parse_datetime(data.get("receipt_time") or "")
+        if report_type == "METAR":
+            entries.append((obs_time, receipt))
+        self._learn_routine_reports(entries)
+        if obs_time > now + FUTURE_OBSERVATION_TOLERANCE:
+            # Only reachable when every candidate report was implausibly
+            # future-dated. It must neither anchor the grid nor count as
+            # the held observation: keep to the grid of the last genuine
+            # routine METAR (or of now), so the next fetch stays bounded.
+            _LOGGER.debug(
+                "%s: observation time %s is implausibly in the future, "
+                "ignored for scheduling",
+                self.station,
+                obs_time.isoformat(),
+            )
+            self._stale_retry_count = 0
+            return self._grid_delay(self._last_metar_time or now, now)
+        # A SPECI or untyped report never moves the origin.
+        origin = self._last_metar_time or obs_time
+
+        if (
+            self._last_observation_time is not None
+            and obs_time == self._last_observation_time
+        ):
+            # Same report as last time - the next one hasn't been
+            # published yet. If its slot is still ahead of us (restart,
+            # mid-cycle check of an hourly station, manual update) the
+            # report isn't late; if it is overdue by more than the largest
+            # plausible lag the station is silent (or its feed is down).
+            # Both wait for the next grid point instead of burning retries.
+            if self._chronic_lag:
+                # Flat polling holds until a new report is published within
+                # the margin (judged in the new-observation branch below) -
+                # no short retry, no mid-cycle grid point in between.
+                self._stale_retry_count = 0
+                return DEFAULT_SCAN_INTERVAL
+            slot = origin + self._learned_cadence() + self._learned_margin()
+            if now < slot or now - slot > ADAPTIVE_MARGIN_MAX:
+                self._stale_retry_count = 0
+                return self._grid_delay(origin, now)
+            if self._stale_retry_count < len(OBS_STALE_RETRY_INTERVALS):
+                delay = OBS_STALE_RETRY_INTERVALS[self._stale_retry_count]
+                self._stale_retry_count += 1
+                _LOGGER.debug(
+                    "%s: observation unchanged, retrying in %s (attempt %d/%d)",
+                    self.station,
+                    delay,
+                    self._stale_retry_count,
+                    len(OBS_STALE_RETRY_INTERVALS),
+                )
+                return delay
+            # Retries exhausted: the report is unusually late.
+            self._stale_retry_count = 0
+            self._exhaust_pending = True
+            self._exhausted_cycles += 1
+            if self._exhausted_cycles >= ADAPTIVE_CHRONIC_LAG_CYCLES:
+                if not self._chronic_lag:
+                    _LOGGER.debug(
+                        "%s: %d exhausted retry cycles in a row, polling "
+                        "flat until a report arrives within the margin",
+                        self.station,
+                        self._exhausted_cycles,
+                    )
+                self._chronic_lag = True
+            if self._chronic_lag:
+                return DEFAULT_SCAN_INTERVAL
+            return self._grid_delay(origin, now)
+
+        # New observation.
+        self._last_observation_time = obs_time
+        self._stale_retry_count = 0
+        if self._exhaust_pending:
+            self._exhaust_pending = False
+        else:
+            self._exhausted_cycles = 0
+        # Recovery needs a known lag (AWC receiptTime), judged on the first
+        # publication of this report - not on when this install noticed it.
+        known_lag = self._routine_log.get(obs_time)
+        if known_lag is not None and known_lag <= ADAPTIVE_MARGIN_MAX:
+            self._exhausted_cycles = 0
+            self._chronic_lag = False
+        if self._chronic_lag:
+            return DEFAULT_SCAN_INTERVAL
+        return self._grid_delay(origin, now)
+
     async def _async_update_data(self):
         """Fetch data from API with retry logic."""
         last_error = None
         attempts_made = 0
+        fetched: dict | None = None
 
         # Try fetching with exponential backoff
         for attempt, delay in enumerate(RETRY_INTERVALS):
@@ -335,8 +580,8 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                             self.station
                         )
 
-                    _LOGGER.debug("Updated data for %s: %s", self.station, data)
-                    return data
+                    fetched = data
+                    break
 
                 # No data but no error - API works but station has no data
                 # Retrying won't help, so break early
@@ -359,8 +604,30 @@ class MetarDataUpdateCoordinator(DataUpdateCoordinator):
                 if attempt < len(RETRY_INTERVALS) - 1:
                     await asyncio.sleep(delay)
 
+        if fetched is not None:
+            # Scheduling runs outside the fetch retry loop: a bug in it must
+            # not be retried (sleeps included) as if the fetch had failed.
+            try:
+                history = getattr(self.client, "routine_history", None)
+                self.update_interval = self._compute_next_update_interval(
+                    fetched, history if isinstance(history, list) else None
+                )
+            except Exception:  # noqa: BLE001 - never lose fresh data to scheduling
+                _LOGGER.exception(
+                    "Adaptive scheduling failed for %s; using the default interval",
+                    self.station,
+                )
+                self.update_interval = DEFAULT_SCAN_INTERVAL
+            _LOGGER.debug("Updated data for %s: %s", self.station, fetched)
+            return fetched
+
         # All retries exhausted or early break
         self._consecutive_failures += 1
+        # Core reschedules from update_interval after a failed refresh too
+        # (_schedule_refresh runs regardless of outcome), so a long learned
+        # interval left in place here would postpone recovery by as much -
+        # an hour, for an hourly station - instead of the usual 30 minutes.
+        self.update_interval = DEFAULT_SCAN_INTERVAL
         _LOGGER.error(
             "Failed for %s after %d attempt(s). Consecutive failures: %d. Error: %s",
             self.station,
@@ -391,11 +658,13 @@ class TafDataUpdateCoordinator(DataUpdateCoordinator["dict[str, Any] | None"]):
         hass: HomeAssistant,
         client: AWCTafApiClient,
         station: str,
+        config_entry: ConfigEntry | None = None,
     ):
         """Initialize the coordinator."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=f"{DOMAIN}_{station}_taf",
             update_interval=DEFAULT_TAF_SCAN_INTERVAL,
         )
@@ -488,6 +757,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 client,
                 station_upper,
                 DEFAULT_SCAN_INTERVAL,
+                config_entry=entry,
             )
 
             # This will fetch data once during setup
@@ -526,7 +796,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     taf_client = AWCTafApiClient(hass)
     taf_coordinators: dict[str, TafDataUpdateCoordinator] = {}
     for station_upper in coordinators:
-        taf_coordinator = TafDataUpdateCoordinator(hass, taf_client, station_upper)
+        taf_coordinator = TafDataUpdateCoordinator(
+            hass, taf_client, station_upper, config_entry=entry
+        )
         taf_coordinators[station_upper] = taf_coordinator
         entry.async_create_background_task(
             hass,
